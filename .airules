@@ -1,0 +1,15 @@
+# AI & Knowledge Retrieval Rules
+
+When working with Large Language Models (LLMs), Prompt Engineering, and RAG architectures in this project, you must adhere strictly to the following `Microsoft.Extensions.AI` and `pgvector` standards:
+
+## 1. LLM Agnosticism
+- **NEVER** inject or deliberately instantiate proprietary provider SDK clients (e.g., `OpenAIClient`, `AnthropicClient`, `GeminiClient`).
+- **ALWAYS** inject `IChatClient`. This guarantees our Wolverine handlers remain 100% isolated from vendor lock-in and allows swapping the LLM in `Program.cs` with a single line.
+
+## 2. Prompt Architecture & Security
+- Avoid simple `string` interpolation for complex conversations or context injection.
+- You MUST construct lists of `ChatMessage` objects. The `ChatRole.System` must be explicitly defined to ground the Vilanoví persona and strictly inject RAG context, minimizing the risk of prompt injection and hallucination.
+
+## 3. RAG Storage (Marten pgvector)
+- Document chunks in C# MUST map their vector embeddings exclusively as standard `float[]` arrays to interoperate correctly with Marten 7+.
+- Nearest Neighbor searches constructed via LINQ MUST use the `x.Embedding.CosineDistance(userEmbedding)` native function.

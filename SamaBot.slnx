@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SamaBot.Api/SamaBot.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SamaBot.Tests/SamaBot.Tests.csproj" />
+  </Folder>
+</Solution>
