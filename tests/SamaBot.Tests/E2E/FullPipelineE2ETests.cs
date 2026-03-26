@@ -26,7 +26,7 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
         }
         """;
 
-        var configSecret = "TU_APP_SECRET_QUE_ESTA_EN_BASIC_SETTINGS"; 
+        var configSecret = "TEST_APP_SECRET_FOR_E2E_ONLY"; 
         
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(configSecret));
         var signature = "sha256=" + Convert.ToHexStringLower(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload)));

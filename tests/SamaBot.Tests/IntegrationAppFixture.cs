@@ -24,6 +24,9 @@ public class IntegrationAppFixture : IAsyncLifetime
 
         Host = await AlbaHost.For<Program>(builder =>
         {
+            // Provide mandatory configuration for WhatsApp signature validation
+            builder.UseSetting("WhatsApp:App_Secret", "TEST_APP_SECRET_FOR_E2E_ONLY");
+
             // Override the connection string targeting Testcontainers and inject MEAI shims
             builder.ConfigureServices(services =>
             {
