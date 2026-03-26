@@ -5,9 +5,9 @@ namespace SamaBot.Api.Features.WhatsAppWebhook;
 
 public record ProcessWhatsAppMessage(string MessageId, string BotPhoneNumberId, string PhoneNumber, string Text, DateTimeOffset Timestamp, string RawPayload);
 
-public class ProcessWhatsAppMessageHandler
+public static class ProcessWhatsAppMessageHandler
 {
-    public async Task<MessageReceived?> Handle(ProcessWhatsAppMessage command, IDocumentSession session)
+    public static async Task<MessageReceived?> Handle(ProcessWhatsAppMessage command, IDocumentSession session)
     {
         // 1. Idempotency Check (Meta Retry Problem)
         // Meta will retry webhooks aggressively if there's latency. We fetch the stream 
