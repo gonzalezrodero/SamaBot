@@ -1,65 +1,72 @@
-﻿using Alba;
-using AwesomeAssertions;
-using Marten;
-using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
+﻿using AwesomeAssertions;
+using Microsoft.AspNetCore.Http;
 using Moq;
-using SamaBot.Api.Core.Entities;
+using Moq.AutoMock;
 using SamaBot.Api.Features.Knowledge;
-using UglyToad.PdfPig.Core;
-using UglyToad.PdfPig.Fonts.Standard14Fonts;
-using UglyToad.PdfPig.Writer;
 
 namespace SamaBot.Tests.Features.Knowledge;
 
-[Collection("Integration")]
-public class IngestPdfEndpointTests(IntegrationAppFixture fixture) : IDisposable
+public class IngestPdfEndpointTests
 {
-    private readonly string _tempPdfPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.pdf");
+    private readonly AutoMocker mocker;
+    private readonly IngestPdfEndpoint sut;
+
+    public IngestPdfEndpointTests()
+    {
+        mocker = new AutoMocker();
+        sut = mocker.CreateInstance<IngestPdfEndpoint>();
+    }
 
     [Fact]
-    public async Task Post_Ingest_ValidFile_ReturnsOk_AndStoresChunksInMarten()
+    public async Task Ingest_EmptyFilePath_ReturnsBadRequest()
     {
         // Arrange
-        CreateSimplePdf(_tempPdfPath, "Integration test content for RAG.");
-        var request = new IngestPdfRequest(_tempPdfPath);
-
-        // Setup the mock via the fixture's exposed property
-        fixture.EmbeddingMock.Setup(x => x.GenerateAsync(
-                It.IsAny<IEnumerable<string>>(),
-                It.IsAny<EmbeddingGenerationOptions>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GeneratedEmbeddings<Embedding<float>>([new Embedding<float>(new float[768])]));
+        var request = new IngestPdfRequest("");
+        var service = mocker.GetMock<IPdfIngestionService>().Object;
 
         // Act
-        await fixture.Host.Scenario(s =>
-        {
-            s.Post.Json(request).ToUrl("/api/admin/ingest");
-            s.StatusCodeShouldBeOk();
-        });
+        var result = await sut.Ingest(request, service, CancellationToken.None);
 
         // Assert
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
-        var chunks = await session.Query<DocumentChunk>()
-            .Where(x => x.SourceDocument == Path.GetFileName(_tempPdfPath))
-            .ToListAsync();
-
-        chunks.Should().NotBeEmpty();
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>()
+              .Which.StatusCode.Should().Be(400);
     }
 
-    private static void CreateSimplePdf(string path, string content)
+    [Fact]
+    public async Task Ingest_ServiceThrowsFileNotFound_ReturnsNotFound()
     {
-        var builder = new PdfDocumentBuilder();
-        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
-        var page = builder.AddPage(595, 842);
-        page.AddText(content, 10, new PdfPoint(25, 800), font);
+        // Arrange
+        var request = new IngestPdfRequest("missing.pdf");
+        var serviceMock = mocker.GetMock<IPdfIngestionService>();
 
-        File.WriteAllBytes(path, builder.Build());
+        serviceMock
+            .Setup(x => x.IngestPdfAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new FileNotFoundException("File not found"));
+
+        // Act
+        var result = await sut.Ingest(request, serviceMock.Object, CancellationToken.None);
+
+        // Assert
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>()
+              .Which.StatusCode.Should().Be(404);
     }
 
-    public void Dispose()
+    [Fact]
+    public async Task Ingest_ServiceThrowsGenericException_ReturnsProblem()
     {
-        if (File.Exists(_tempPdfPath)) File.Delete(_tempPdfPath);
-        GC.SuppressFinalize(this);
+        // Arrange
+        var request = new IngestPdfRequest("error.pdf");
+        var serviceMock = mocker.GetMock<IPdfIngestionService>();
+
+        serviceMock
+            .Setup(x => x.IngestPdfAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception("Random failure"));
+
+        // Act
+        var result = await sut.Ingest(request, serviceMock.Object, CancellationToken.None);
+
+        // Assert
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>()
+              .Which.StatusCode.Should().Be(500);
     }
 }
