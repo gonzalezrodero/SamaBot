@@ -2,7 +2,7 @@ namespace SamaBot.Api.Features.LanguageDetection;
 
 public static class Config
 {
-    public static IServiceCollection AddLanguageDetectionFeature(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddLanguageDetectionFeature(this IServiceCollection services)
     {
         services.AddScoped<ILanguageDetector, LanguageDetector>();
         

@@ -13,7 +13,8 @@ public class MessageReceivedHandler(ILanguageDetector languageDetector)
         var analyzedEvent = new MessageAnalyzed(
             MessageId: @event.MessageId,
             PhoneNumber: @event.PhoneNumber,
-            LanguageCode: languageCode
+            LanguageCode: languageCode,
+            @event.Text
         );
 
         // Append the new phase to the Marten event stream

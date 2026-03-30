@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db:
+      image: pgvector/pgvector:pg16
+      container_name: samabot-db
+      environment:
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: postgres 
+        POSTGRES_DB: samabot
+      ports:
+        - "5433:5432"
+      volumes:
+        - samabot_pg_data:/var/lib/postgresql/data
+      restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: samabot-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - samabot_ollama_data:/root/.ollama
+    restart: unless-stopped
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: samabot-ollama-init
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    command: >
+      bash -c "
+      echo 'Esperando a que el motor de Ollama arranque...' &&
+      sleep 5 &&
+      echo 'Descargando modelo de texto (llama3)...' &&
+      ollama pull llama3 &&
+      echo 'Descargando modelo de vectores (nomic-embed-text)...' &&
+      ollama pull nomic-embed-text &&
+      echo '¡Modelos listos para el SamàBot!'
+      "
+
+volumes:
+  samabot_pg_data:
+  samabot_ollama_data:

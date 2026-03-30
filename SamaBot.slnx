@@ -1,8 +1,15 @@
 <Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Development" />
+    <BuildType Name="Release" />
+  </Configurations>
   <Folder Name="/src/">
     <Project Path="src/SamaBot.Api/SamaBot.Api.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/SamaBot.Tests/SamaBot.Tests.csproj" />
+    <Project Path="tests/SamaBot.Tests/SamaBot.Tests.csproj">
+      <BuildType Solution="Development|*" Project="Release" />
+    </Project>
   </Folder>
 </Solution>
