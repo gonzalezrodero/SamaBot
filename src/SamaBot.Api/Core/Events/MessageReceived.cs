@@ -8,5 +8,4 @@ public record MessageReceived(
     string BotPhoneNumberId,
     string PhoneNumber,
     string Text,
-    DateTimeOffset ReceivedAt
-);
+    DateTimeOffset ReceivedAt);

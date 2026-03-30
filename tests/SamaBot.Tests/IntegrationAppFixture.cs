@@ -1,66 +1,78 @@
 using Alba;
 using Marten;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using SamaBot.Api;
+using Moq;
+using Npgsql;
+using SamaBot.Api.Features.LanguageDetection; // Make sure you have this using
+using SamaBot.Api.Features.WhatsAppWebhook;
 using Testcontainers.PostgreSql;
 using Wolverine.Http;
-using Moq;
 
 namespace SamaBot.Tests;
 
 public class IntegrationAppFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("pgvector/pgvector:pg16")
         .WithDatabase("samabot_test")
         .WithUsername("postgres")
         .WithPassword("postgres")
         .Build();
 
     public IAlbaHost Host { get; private set; } = null!;
-    
+
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
 
         Host = await AlbaHost.For<Program>(builder =>
         {
-            // Provide mandatory configuration for WhatsApp signature validation
             builder.UseSetting("WhatsApp:App_Secret", "TEST_APP_SECRET_FOR_E2E_ONLY");
 
-            // Override the connection string targeting Testcontainers and inject MEAI shims
             builder.ConfigureServices(services =>
             {
-                services.AddWolverineHttp(); // CRITICAL: Explicitly ensure Wolverine HTTP is loaded for Alba context
-                
-                var chatClientMock = new Mock<Microsoft.Extensions.AI.IChatClient>();
-                var mockResponse = new Microsoft.Extensions.AI.ChatResponse(new Microsoft.Extensions.AI.ChatMessage(Microsoft.Extensions.AI.ChatRole.Assistant, "es"));
-                chatClientMock.Setup(c => c.GetResponseAsync(It.IsAny<IEnumerable<Microsoft.Extensions.AI.ChatMessage>>(), It.IsAny<Microsoft.Extensions.AI.ChatOptions>(), It.IsAny<CancellationToken>()))
-                              .ReturnsAsync(mockResponse);
+                services.AddWolverineHttp();
+                services.AddNpgsqlDataSource(_postgres.GetConnectionString());
 
-                // Override external AI provider with Fake to ensure stable execution
-                services.AddSingleton<Microsoft.Extensions.AI.IChatClient>(chatClientMock.Object);
-                
-                services.ConfigureMarten(opts => 
+                services.ConfigureMarten(opts =>
                 {
                     opts.Connection(_postgres.GetConnectionString());
                 });
+
+                services.AddScoped<IWhatsAppPayloadProcessor, WhatsAppPayloadProcessor>();
+
+                var chatClientMock = new Mock<IChatClient>();
+                var mockResponse = new ChatResponse(new ChatMessage(ChatRole.Assistant, "es"));
+                chatClientMock.Setup(c => c.GetResponseAsync(
+                        It.IsAny<IEnumerable<ChatMessage>>(),
+                        It.IsAny<ChatOptions>(),
+                        It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(mockResponse);
+
+                services.AddSingleton(chatClientMock.Object);
+
+                var languageDetectorMock = new Mock<ILanguageDetector>();
+                languageDetectorMock.Setup(l => l.DetectLanguageAsync(
+                        It.IsAny<string>(),
+                        It.IsAny<CancellationToken>()))
+                    .ReturnsAsync("es");
+
+                services.AddSingleton(languageDetectorMock.Object);
             });
         });
     }
 
     public async Task DisposeAsync()
     {
-        if (Host != null)
-        {
-            await Host.DisposeAsync();
-        }
-        
+        if (Host != null) await Host.DisposeAsync();
         await _postgres.DisposeAsync();
     }
 }
 
-// xUnit Collection Definition
 [CollectionDefinition("Integration")]
 public class IntegrationCollection : ICollectionFixture<IntegrationAppFixture>
 {
+    // This class has no code, and is never created. Its purpose is simply
+    // to be the place to apply [CollectionDefinition] and all the
+    // ICollectionFixture<> interfaces.
 }

@@ -1,5 +1,7 @@
-using SamaBot.Api.Features.WhatsAppWebhook;
+using OllamaSharp;
+using SamaBot.Api.Features.Knowledge;
 using SamaBot.Api.Features.LanguageDetection;
+using SamaBot.Api.Features.WhatsAppWebhook;
 
 namespace SamaBot.Api;
 
@@ -12,10 +14,9 @@ public static class Config
     public static IServiceCollection AddSamaBotFeatures(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddWhatsAppWebhookFeature(configuration);
-        services.AddLanguageDetectionFeature(configuration);
-        
-        // Future phases (Localization, RAG, AI Generation, Dispatch) will be registered here
-        
+        services.AddLanguageDetectionFeature();
+        services.AddKnowledgeFeature();
+
         return services;
     }
 }
