@@ -23,13 +23,11 @@ public class PdfIngestionService(
         var fileName = Path.GetFileName(filePath);
         logger.LogInformation("Starting text extraction for document: {FileName}", fileName);
 
-        // 1. Open and extract text from the PDF using PdfPig
         using var document = PdfDocument.Open(filePath);
         var fullText = string.Empty;
 
         foreach (var page in document.GetPages())
         {
-            // ContentOrderTextExtractor attempts to read the text in the logical reading order
             var pageText = ContentOrderTextExtractor.GetText(page);
             fullText += pageText + "\n\n";
         }
@@ -37,7 +35,6 @@ public class PdfIngestionService(
         var chunks = ChunkText(fullText, chunkSize: 1000, overlap: 200);
         logger.LogInformation("Extracted {ChunkCount} chunks from {FileName}. Starting vector generation...", chunks.Count, fileName);
 
-        // 3. THE FIX: Pass the whole batch to the KnowledgeBaseService
         await knowledgeBaseService.IngestChunksAsync(chunks, fileName, ct);
 
         logger.LogInformation("Successfully ingested {FileName} into the Knowledge Base.", fileName);

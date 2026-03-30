@@ -1,6 +1,4 @@
-﻿using Pgvector;
-
-namespace SamaBot.Api.Core.Entities;
+﻿namespace SamaBot.Api.Core.Entities;
 
 /// <summary>
 /// Represents a chunk of text from the club's documentation (PDFs)

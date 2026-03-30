@@ -1,4 +1,3 @@
-using OllamaSharp;
 using SamaBot.Api.Features.Knowledge;
 using SamaBot.Api.Features.LanguageDetection;
 using SamaBot.Api.Features.WhatsAppWebhook;

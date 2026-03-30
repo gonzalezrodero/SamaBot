@@ -3,8 +3,7 @@ using Marten;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
-using Npgsql;
-using SamaBot.Api.Features.LanguageDetection; // Make sure you have this using
+using SamaBot.Api.Features.LanguageDetection;
 using SamaBot.Api.Features.WhatsAppWebhook;
 using Testcontainers.PostgreSql;
 using Wolverine.Http;
@@ -28,6 +27,7 @@ public class IntegrationAppFixture : IAsyncLifetime
         Host = await AlbaHost.For<Program>(builder =>
         {
             builder.UseSetting("WhatsApp:App_Secret", "TEST_APP_SECRET_FOR_E2E_ONLY");
+            builder.UseSetting("ConnectionStrings:Marten", _postgres.GetConnectionString());
 
             builder.ConfigureServices(services =>
             {

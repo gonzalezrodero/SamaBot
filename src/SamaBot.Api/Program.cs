@@ -3,7 +3,6 @@ using Marten;
 using Microsoft.Extensions.AI;
 using Npgsql;
 using OllamaSharp;
-using SamaBot.Api.Core.Entities;
 using SamaBot.Api.Features.Knowledge;
 using Wolverine;
 using Wolverine.Http;
