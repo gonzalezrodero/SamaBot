@@ -7,7 +7,7 @@ using SamaBot.Tests.Extensions;
 namespace SamaBot.Tests.Features.LanguageDetection;
 
 [Collection("Integration")]
-public class MessageReceivedHandlerComponentTests(IntegrationAppFixture fixture)
+public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
 {
     [Fact]
     public async Task GivenRawMessage_WhenHandlerRuns_ThenItResolvesLanguageAndAppendsMessageAnalyzedEvent()

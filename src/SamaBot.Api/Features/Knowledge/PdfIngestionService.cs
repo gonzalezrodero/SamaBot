@@ -1,4 +1,5 @@
-﻿using UglyToad.PdfPig;
+﻿using System.Text;
+using UglyToad.PdfPig;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace SamaBot.Api.Features.Knowledge;
@@ -21,28 +22,24 @@ public class PdfIngestionService(
         }
 
         var fileName = Path.GetFileName(filePath);
-        logger.LogInformation("Starting text extraction for document: {FileName}", fileName);
-
         using var document = PdfDocument.Open(filePath);
-        var fullText = string.Empty;
+        var textBuilder = new StringBuilder();
 
         foreach (var page in document.GetPages())
         {
-            var pageText = ContentOrderTextExtractor.GetText(page);
-            fullText += pageText + "\n\n";
+            textBuilder.AppendLine(ContentOrderTextExtractor.GetText(page));
         }
 
-        var chunks = ChunkText(fullText, chunkSize: 1000, overlap: 200);
-        logger.LogInformation("Extracted {ChunkCount} chunks from {FileName}. Starting vector generation...", chunks.Count, fileName);
+        var chunks = ChunkText(textBuilder.ToString(), 1000, 200);
 
         await knowledgeBaseService.IngestChunksAsync(chunks, fileName, ct);
 
-        logger.LogInformation("Successfully ingested {FileName} into the Knowledge Base.", fileName);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Successfully ingested {ChunkCount} chunks from {FileName}", chunks.Count, fileName);
+        }
     }
 
-    /// <summary>
-    /// Splits a large string into smaller chunks with a specified overlap to maintain context boundaries.
-    /// </summary>
     private static List<string> ChunkText(string text, int chunkSize, int overlap)
     {
         if (string.IsNullOrWhiteSpace(text)) return [];
@@ -53,10 +50,7 @@ public class PdfIngestionService(
         while (position < text.Length)
         {
             var length = Math.Min(chunkSize, text.Length - position);
-            var chunk = text.Substring(position, length);
-            chunks.Add(chunk);
-
-            // Move forward, subtracting the overlap so the next chunk shares some context
+            chunks.Add(text.Substring(position, length));
             position += chunkSize - overlap;
         }
 

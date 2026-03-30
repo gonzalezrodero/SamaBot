@@ -20,6 +20,8 @@ public class IntegrationAppFixture : IAsyncLifetime
 
     public IAlbaHost Host { get; private set; } = null!;
 
+    public Mock<IEmbeddingGenerator<string, Embedding<float>>> EmbeddingMock { get; } = new();
+
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
@@ -39,6 +41,7 @@ public class IntegrationAppFixture : IAsyncLifetime
                     opts.Connection(_postgres.GetConnectionString());
                 });
 
+                services.AddSingleton(EmbeddingMock.Object);
                 services.AddScoped<IWhatsAppPayloadProcessor, WhatsAppPayloadProcessor>();
 
                 var chatClientMock = new Mock<IChatClient>();

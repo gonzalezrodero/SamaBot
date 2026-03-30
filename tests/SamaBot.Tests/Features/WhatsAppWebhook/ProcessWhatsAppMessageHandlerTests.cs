@@ -8,7 +8,7 @@ using SamaBot.Tests.Extensions;
 namespace SamaBot.Tests.Features.WhatsAppWebhook;
 
 [Collection("Integration")]
-public class ProcessWhatsAppMessageHandlerComponentTests(IntegrationAppFixture fixture)
+public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
 {
     [Fact]
     public async Task GivenValidMessageCommand_WhenHandlerExecutes_ThenItAppendsToMartenEventStore()
