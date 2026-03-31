@@ -3,6 +3,7 @@ using Marten;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
+using SamaBot.Api.Core.Entities;
 using SamaBot.Api.Features.LanguageDetection;
 using SamaBot.Api.Features.WhatsAppWebhook;
 using Testcontainers.PostgreSql;
@@ -12,7 +13,7 @@ namespace SamaBot.Tests;
 
 public class IntegrationAppFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("pgvector/pgvector:pg16")
+    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg16")
         .WithDatabase("samabot_test")
         .WithUsername("postgres")
         .WithPassword("postgres")
@@ -24,25 +25,31 @@ public class IntegrationAppFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        await _postgres.StartAsync();
+        await postgres.StartAsync();
 
         Host = await AlbaHost.For<Program>(builder =>
         {
             builder.UseSetting("WhatsApp:App_Secret", "TEST_APP_SECRET_FOR_E2E_ONLY");
-            builder.UseSetting("ConnectionStrings:Marten", _postgres.GetConnectionString());
+            builder.UseSetting("ConnectionStrings:Marten", postgres.GetConnectionString());
 
             builder.ConfigureServices(services =>
             {
                 services.AddWolverineHttp();
-                services.AddNpgsqlDataSource(_postgres.GetConnectionString());
+                services.AddNpgsqlDataSource(postgres.GetConnectionString());
 
                 services.ConfigureMarten(opts =>
                 {
-                    opts.Connection(_postgres.GetConnectionString());
+                    opts.Connection(postgres.GetConnectionString());
+                    opts.Schema.For<DocumentChunk>();
                 });
 
-                services.AddSingleton(EmbeddingMock.Object);
-                services.AddScoped<IWhatsAppPayloadProcessor, WhatsAppPayloadProcessor>();
+                EmbeddingMock.Setup(x => x.GenerateAsync(
+                        It.IsAny<IEnumerable<string>>(),
+                        It.IsAny<EmbeddingGenerationOptions>(),
+                        It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new GeneratedEmbeddings<Embedding<float>>([new Embedding<float>(new float[768])]));
+
+                services.AddSingleton(EmbeddingMock.Object); services.AddScoped<IWhatsAppPayloadProcessor, WhatsAppPayloadProcessor>();
 
                 var chatClientMock = new Mock<IChatClient>();
                 var mockResponse = new ChatResponse(new ChatMessage(ChatRole.Assistant, "es"));
@@ -68,7 +75,7 @@ public class IntegrationAppFixture : IAsyncLifetime
     public async Task DisposeAsync()
     {
         if (Host != null) await Host.DisposeAsync();
-        await _postgres.DisposeAsync();
+        await postgres.DisposeAsync();
     }
 }
 
