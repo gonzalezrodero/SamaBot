@@ -10,9 +10,6 @@ public record IngestPdfRequest(string FilePath);
 
 public class IngestPdfEndpoint
 {
-    /// <summary>
-    /// Admin endpoint to trigger the ingestion of a local PDF file into the Knowledge Base.
-    /// </summary>
     [WolverinePost("/api/admin/ingest")]
     public async Task<IResult> Ingest(
         [FromBody] IngestPdfRequest request,

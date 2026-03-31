@@ -68,7 +68,6 @@ public class WhatsAppPayloadProcessor(IConfiguration config) : IWhatsAppPayloadP
             var messageId = messageNode.GetProperty("id").GetString();
             var messageText = messageNode.GetProperty("text").GetProperty("body").GetString();
             
-            // Critical details sourced from scraping
             var timestampStr = messageNode.GetProperty("timestamp").GetString();
             var botNumberId = valueNode.GetProperty("metadata").GetProperty("phone_number_id").GetString();
 

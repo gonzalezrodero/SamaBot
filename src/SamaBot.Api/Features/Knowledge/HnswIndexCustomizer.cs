@@ -1,5 +1,4 @@
 ﻿using SamaBot.Api.Core.Entities;
-using System.Diagnostics.CodeAnalysis;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
@@ -17,7 +16,6 @@ public class HnswIndexCustomizer : IFeatureSchema
 
     public void WritePermissions(Migrator rules, TextWriter writer) { }
 
-    [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Required by IFeatureSchema interface")]
     public void WriteTemplate(Migrator rules, TextWriter writer)
     {
         writer.WriteLine(@"

@@ -17,7 +17,7 @@ public class WhatsAppWebhookEndpoint
         
         if (mode == "subscribe" && token == verifyToken && challenge != null)
         {
-            return challenge; // Meta expects the raw challenge string returned
+            return challenge;
         }
         
         throw new BadHttpRequestException("Invalid verification token.", 403);
@@ -29,9 +29,7 @@ public class WhatsAppWebhookEndpoint
         IWhatsAppPayloadProcessor processor,
         IMessageBus bus)
     {
-        // Vital: enable buffering so the stream can be read for validation and then again for parsing
         request.EnableBuffering(); 
-
         if (!await processor.IsSignatureValidAsync(request))
         {
             return Results.Unauthorized();

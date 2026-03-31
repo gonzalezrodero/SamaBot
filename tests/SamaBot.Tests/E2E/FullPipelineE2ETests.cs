@@ -1,10 +1,16 @@
 using Alba;
 using AwesomeAssertions;
 using Marten;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Moq;
 using SamaBot.Api.Core.Events;
+using SamaBot.Api.Features.Knowledge;
 using System.Security.Cryptography;
 using System.Text;
+using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Fonts.Standard14Fonts;
+using UglyToad.PdfPig.Writer;
 using Wolverine.Tracking;
 
 namespace SamaBot.Tests.E2E;
@@ -13,26 +19,41 @@ namespace SamaBot.Tests.E2E;
 public class FullPipelineE2ETests(IntegrationAppFixture fixture)
 {
     [Fact]
-    public async Task CompleteUserJourney_FromWebhookToFinalCascade()
+    public async Task FullRAGJourney_FromIngestionToAIResponse()
     {
-        // Arrange
-        var payload = """
+        // --- 1. Arrange: Data Ingestion ---
+        var tempPdfPath = Path.Combine(Path.GetTempPath(), $"test_knowledge_{Guid.NewGuid()}.pdf");
+        var secretInfo = "The secret access code for SamaBot is 998877.";
+        CreateTestPdf(tempPdfPath, secretInfo);
+
+        var mockVector = new float[768];
+        mockVector[0] = 1.0f;
+
+        fixture.EmbeddingMock.Setup(x => x.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GeneratedEmbeddings<Embedding<float>>([new Embedding<float>(mockVector)]));
+
+        // Ingest the PDF via API
+        await fixture.Host.Scenario(s =>
+        {
+            s.Post.Json(new IngestPdfRequest(tempPdfPath)).ToUrl("/api/admin/ingest");
+            s.StatusCodeShouldBeOk();
+        });
+
+        // --- 2. Arrange: Webhook Payload ---
+        var testPhoneNumber = $"34999000{Random.Shared.Next(100, 999)}"; // Randomize to avoid stream collisions in shared fixture
+        var payload = $$"""
         {
           "object": "whatsapp_business_account",
           "entry": [ { "changes": [ { "value": {
             "metadata": { "phone_number_id": "12345" },
-            "messages": [ { "from": "34999888777", "id": "wamid.E2E", "timestamp": "1603059201", "text": { "body": "End to End Text" }, "type": "text" } ]
+            "messages": [ { "from": "{{testPhoneNumber}}", "id": "wamid.RAG_TEST", "timestamp": "1603059201", "text": { "body": "What is the secret code?" }, "type": "text" } ]
           } } ] } ]
         }
         """;
 
-        var configSecret = "TEST_APP_SECRET_FOR_E2E_ONLY"; 
-        
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(configSecret));
-        var signature = "sha256=" + Convert.ToHexStringLower(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload)));
+        var signature = GenerateSignature(payload, "TEST_APP_SECRET_FOR_E2E_ONLY");
 
-        // Act
-        // This simulates a real WhatsApp HTTP POST and waits for EVERY cascading handler in the system to finish
+        // --- 3. Act: The Webhook Cascade ---
         await fixture.Host.ExecuteAndWaitAsync(async () =>
         {
             await fixture.Host.Scenario(s =>
@@ -43,19 +64,42 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
             });
         });
 
-        // Assert E2E State
+        // --- 4. Assert: Verification of the Event Stream Cascade ---
         using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
-        var streamEvents = await session.Events.FetchStreamAsync("34999888777");
-        
-        streamEvents.Should().NotBeEmpty();
-        
-        // 1. Webhook Phase
-        streamEvents.Any(e => e.Data is MessageReceived).Should().BeTrue("The webhook should have recorded the intake.");
-        
-        // 2. Language Detection Phase
-        streamEvents.Any(e => e.Data is MessageAnalyzed).Should().BeTrue("The NLP pipeline should have cascaded and resolved.");
-        
-        // Note: As we add Phase 5 (RAG) and Phase 6 (Dispatch), we will add simple presence assertions here
-        // to guarantee the ENTIRE chain fired effectively from a single HTTP call.
+        var streamEvents = await session.Events.FetchStreamAsync(testPhoneNumber);
+
+        streamEvents.Should().NotBeEmpty("The event stream should have been populated by the webhook.");
+
+        // 4.1. Webhook Phase
+        var received = streamEvents.Select(e => e.Data).OfType<MessageReceived>().FirstOrDefault();
+        received.Should().NotBeNull("Phase 1: MessageReceived event is missing.");
+        received!.Text.Should().Be("What is the secret code?");
+
+        // 4.2. Language Detection Phase
+        var analyzed = streamEvents.Select(e => e.Data).OfType<MessageAnalyzed>().FirstOrDefault();
+        analyzed.Should().NotBeNull("Phase 2: MessageAnalyzed event is missing.");
+        analyzed!.LanguageCode.Should().Be("es", "Because the IntegrationAppFixture mocks the language detector to return 'es'.");
+
+        // 4.3. AI / RAG Phase
+        var reply = streamEvents.Select(e => e.Data).OfType<ReplyGenerated>().FirstOrDefault();
+        reply.Should().NotBeNull("Phase 3: ReplyGenerated event is missing.");
+        reply!.ReplyText.Should().NotBeNullOrWhiteSpace();
+
+        // Cleanup
+        if (File.Exists(tempPdfPath)) File.Delete(tempPdfPath);
+    }
+
+    private static string GenerateSignature(string payload, string secret)
+    {
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+        return "sha256=" + Convert.ToHexStringLower(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload)));
+    }
+
+    private static void CreateTestPdf(string path, string content)
+    {
+        var builder = new PdfDocumentBuilder();
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        builder.AddPage(595, 842).AddText(content, 10, new PdfPoint(25, 800), font);
+        File.WriteAllBytes(path, builder.Build());
     }
 }
