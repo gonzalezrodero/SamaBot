@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SamaBot.Api.Core.Events;
 using SamaBot.Api.Features.Knowledge;
+using SamaBot.Api.Features.WhatsAppWebhook;
 using System.Security.Cryptography;
 using System.Text;
 using UglyToad.PdfPig.Core;
@@ -51,7 +52,7 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
         }
         """;
 
-        var signature = GenerateSignature(payload, "TEST_APP_SECRET_FOR_E2E_ONLY");
+        var signature = GenerateSignature(payload, "integration_test_secret");
 
         // --- 3. Act: The Webhook Cascade ---
         await fixture.Host.ExecuteAndWaitAsync(async () =>
@@ -87,6 +88,58 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
 
         // Cleanup
         if (File.Exists(tempPdfPath)) File.Delete(tempPdfPath);
+    }
+
+    [Fact]
+    public async Task Webhook_Idempotency_DuplicateMessages_AreIgnored()
+    {
+        // --- 1. Arrange: Webhook Payload ---
+        var testPhoneNumber = $"34999111{Random.Shared.Next(100, 999)}";
+        var messageId = $"wamid.IDEMP_{Guid.NewGuid():N}";
+
+        var payload = $$"""
+        {
+          "object": "whatsapp_business_account",
+          "entry": [ { "changes": [ { "value": {
+            "metadata": { "phone_number_id": "12345" },
+            "messages": [ { "from": "{{testPhoneNumber}}", "id": "{{messageId}}", "timestamp": "1603059201", "text": { "body": "Idempotency test!" }, "type": "text" } ]
+          } } ] } ]
+        }
+        """;
+
+        var signature = GenerateSignature(payload, "integration_test_secret");
+
+        // --- 2. Act: Send the payload TWICE ---
+
+        // First delivery (Should be processed)
+        await fixture.Host.Scenario(s =>
+        {
+            s.Post.Text(payload).ContentType("application/json").ToUrl("/api/whatsapp/webhook");
+            s.WithRequestHeader("X-Hub-Signature-256", signature);
+            s.StatusCodeShouldBeOk();
+        });
+
+        // Second delivery - Meta retry (Should be ignored by our Idempotency check)
+        await fixture.Host.Scenario(s =>
+        {
+            s.Post.Text(payload).ContentType("application/json").ToUrl("/api/whatsapp/webhook");
+            s.WithRequestHeader("X-Hub-Signature-256", signature);
+            s.StatusCodeShouldBeOk();
+        });
+
+        // --- 3. Assert: Verification of Idempotency ---
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
+
+        // 3.1. Verify the Stream: There should be exactly ONE MessageReceived event for this messageId
+        var streamEvents = await session.Events.FetchStreamAsync(testPhoneNumber);
+        var receivedEvents = streamEvents.Select(e => e.Data).OfType<MessageReceived>().Where(x => x.MessageId == messageId).ToList();
+
+        receivedEvents.Should().HaveCount(1, "The idempotency check should have intercepted and ignored the second webhook call.");
+
+        // 3.2. Verify the Projection: The ProcessedMessage document should exist in the database
+        var processedMessage = await session.LoadAsync<ProcessedMessage>(messageId);
+        processedMessage.Should().NotBeNull("The EventProjection should have created a ProcessedMessage document during the first processing.");
+        processedMessage!.Id.Should().Be(messageId);
     }
 
     private static string GenerateSignature(string payload, string secret)

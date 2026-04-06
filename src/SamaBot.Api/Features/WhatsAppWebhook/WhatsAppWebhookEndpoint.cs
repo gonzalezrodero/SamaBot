@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using SamaBot.Api.Common.Configuration;
 using Wolverine;
 using Wolverine.Http;
 
@@ -11,25 +13,24 @@ public class WhatsAppWebhookEndpoint
         [FromQuery(Name = "hub.mode")] string? mode,
         [FromQuery(Name = "hub.verify_token")] string? token,
         [FromQuery(Name = "hub.challenge")] string? challenge,
-        IConfiguration config)
+        IOptions<WhatsAppOptions> options)
     {
-        var verifyToken = config["WhatsApp:Verify_Token"] ?? "samabot_token";
-        
+        var verifyToken = options.Value.VerifyToken;
+
         if (mode == "subscribe" && token == verifyToken && challenge != null)
         {
             return challenge;
         }
-        
+
         throw new BadHttpRequestException("Invalid verification token.", 403);
     }
 
     [WolverinePost("/api/whatsapp/webhook")]
     public async Task<IResult> ReceiveMessage(
-        HttpRequest request, 
+        HttpRequest request,
         IWhatsAppPayloadProcessor processor,
         IMessageBus bus)
     {
-        request.EnableBuffering(); 
         if (!await processor.IsSignatureValidAsync(request))
         {
             return Results.Unauthorized();

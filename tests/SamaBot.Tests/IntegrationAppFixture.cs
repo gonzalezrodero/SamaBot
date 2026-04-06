@@ -3,8 +3,10 @@ using Marten;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
+using SamaBot.Api.Common.Configuration;
 using SamaBot.Api.Core.Entities;
 using SamaBot.Api.Features.LanguageDetection;
+using SamaBot.Api.Features.WhatsAppDispatcher;
 using SamaBot.Api.Features.WhatsAppWebhook;
 using Testcontainers.PostgreSql;
 using Wolverine.Http;
@@ -29,11 +31,18 @@ public class IntegrationAppFixture : IAsyncLifetime
 
         Host = await AlbaHost.For<Program>(builder =>
         {
-            builder.UseSetting("WhatsApp:App_Secret", "TEST_APP_SECRET_FOR_E2E_ONLY");
             builder.UseSetting("ConnectionStrings:Marten", postgres.GetConnectionString());
 
             builder.ConfigureServices(services =>
             {
+                services.Configure<WhatsAppOptions>(opts =>
+                {
+                    opts.AccessToken = "integration_test_access_token";
+                    opts.PhoneNumberId = "integration_test_phone_id";
+                    opts.AppSecret = "integration_test_secret";
+                    opts.VerifyToken = "integration_test_verify_token";
+                });
+
                 services.AddWolverineHttp();
                 services.AddNpgsqlDataSource(postgres.GetConnectionString());
 
@@ -68,6 +77,16 @@ public class IntegrationAppFixture : IAsyncLifetime
                     .ReturnsAsync("es");
 
                 services.AddSingleton(languageDetectorMock.Object);
+
+                var whatsappClientMock = new Mock<IWhatsAppClient>();
+                whatsappClientMock.Setup(client => client.SendMessageAsync(
+                        It.IsAny<string>(),
+                        It.IsAny<WhatsAppTextRequest>(),
+                        It.IsAny<string>(),
+                        It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new WhatsAppResponse("whatsapp", [], []));
+
+                services.AddSingleton(whatsappClientMock.Object);
             });
         });
     }

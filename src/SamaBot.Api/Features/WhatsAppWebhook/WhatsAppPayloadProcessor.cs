@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using SamaBot.Api.Common.Configuration;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -10,10 +12,15 @@ public interface IWhatsAppPayloadProcessor
     Task<ProcessWhatsAppMessage?> ExtractMessageAsync(HttpRequest request);
 }
 
-public class WhatsAppPayloadProcessor(IConfiguration config) : IWhatsAppPayloadProcessor
+public class WhatsAppPayloadProcessor : IWhatsAppPayloadProcessor
 {
-    private readonly string _secret = config["WhatsApp:App_Secret"] 
-        ?? throw new InvalidOperationException("WhatsApp:App_Secret is not configured.");
+    private readonly WhatsAppOptions options;
+
+    public WhatsAppPayloadProcessor(IOptions<WhatsAppOptions> options)
+    {
+        this.options = options.Value;
+        ArgumentException.ThrowIfNullOrWhiteSpace(this.options.AppSecret, nameof(WhatsAppPayloadProcessor.options.AppSecret));
+    }
 
     public async Task<bool> IsSignatureValidAsync(HttpRequest request)
     {
@@ -24,11 +31,11 @@ public class WhatsAppPayloadProcessor(IConfiguration config) : IWhatsAppPayloadP
         }
 
         var incomingSignature = signatureHeader["sha256=".Length..];
-        
+
         var body = await ReadRequestBodyAsync(request);
         var expectedSignature = ComputeSignature(body);
 
-        return incomingSignature == expectedSignature;
+        return incomingSignature.Equals(expectedSignature, StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<ProcessWhatsAppMessage?> ExtractMessageAsync(HttpRequest request)
@@ -39,49 +46,70 @@ public class WhatsAppPayloadProcessor(IConfiguration config) : IWhatsAppPayloadP
 
     private static async Task<string> ReadRequestBodyAsync(HttpRequest request)
     {
+        request.EnableBuffering();
+
         request.Body.Position = 0;
         using var reader = new StreamReader(request.Body, Encoding.UTF8, leaveOpen: true);
         var body = await reader.ReadToEndAsync();
-        request.Body.Position = 0; // Reset for downstream parsers
-        
+
+        // Reset for downstream parsers (like the framework's own model binders)
+        request.Body.Position = 0;
+
         return body;
     }
 
     private string ComputeSignature(string payload)
     {
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_secret));
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(options.AppSecret));
         var hashBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
-        
+
         return Convert.ToHexStringLower(hashBytes);
     }
 
     private static ProcessWhatsAppMessage? ParseJsonToMessage(string body)
     {
-        var json = JsonSerializer.Deserialize<JsonElement>(body);
-        
-        try 
+        try
         {
-            var valueNode = json.GetProperty("entry")[0].GetProperty("changes")[0].GetProperty("value");
-            var messageNode = valueNode.GetProperty("messages")[0];
-            
-            var fromNumber = messageNode.GetProperty("from").GetString();
-            var messageId = messageNode.GetProperty("id").GetString();
-            var messageText = messageNode.GetProperty("text").GetProperty("body").GetString();
-            
-            var timestampStr = messageNode.GetProperty("timestamp").GetString();
-            var botNumberId = valueNode.GetProperty("metadata").GetProperty("phone_number_id").GetString();
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
 
-            if (!string.IsNullOrEmpty(fromNumber) && !string.IsNullOrEmpty(messageText) && !string.IsNullOrEmpty(messageId) && timestampStr != null && botNumberId != null)
+            // Navigating the standard Meta Webhook payload structure safely
+            if (root.TryGetProperty("entry", out var entries) && entries.GetArrayLength() > 0)
             {
-                var timestamp = DateTimeOffset.FromUnixTimeSeconds(long.Parse(timestampStr));
-                return new ProcessWhatsAppMessage(messageId, botNumberId, fromNumber, messageText, timestamp, body);
+                var firstEntry = entries[0];
+                if (firstEntry.TryGetProperty("changes", out var changes) && changes.GetArrayLength() > 0)
+                {
+                    var valueNode = changes[0].GetProperty("value");
+
+                    if (valueNode.TryGetProperty("messages", out var messages) && messages.GetArrayLength() > 0)
+                    {
+                        var messageNode = messages[0];
+
+                        var fromNumber = messageNode.GetProperty("from").GetString();
+                        var messageId = messageNode.GetProperty("id").GetString();
+                        var timestampStr = messageNode.GetProperty("timestamp").GetString();
+                        var botNumberId = valueNode.GetProperty("metadata").GetProperty("phone_number_id").GetString();
+
+                        // Check if it's a text message
+                        if (messageNode.TryGetProperty("text", out var textNode) && textNode.TryGetProperty("body", out var bodyNode))
+                        {
+                            var messageText = bodyNode.GetString();
+
+                            if (!string.IsNullOrEmpty(fromNumber) && !string.IsNullOrEmpty(messageText) && !string.IsNullOrEmpty(messageId) && timestampStr != null && botNumberId != null)
+                            {
+                                var timestamp = DateTimeOffset.FromUnixTimeSeconds(long.Parse(timestampStr));
+                                return new ProcessWhatsAppMessage(messageId, botNumberId, fromNumber, messageText, timestamp, body);
+                            }
+                        }
+                    }
+                }
             }
-        } 
-        catch (Exception ex) when (ex is KeyNotFoundException || ex is IndexOutOfRangeException || ex is InvalidOperationException)
+        }
+        catch (JsonException)
         {
-            // Safely ignored: this is not a standard incoming text message (e.g., status, image, audio)
+            // Safely ignored: Invalid JSON payload
         }
 
-        return null;
+        return null; // Not a standard incoming text message
     }
 }
