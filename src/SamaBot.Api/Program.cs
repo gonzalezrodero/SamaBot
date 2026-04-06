@@ -1,57 +1,37 @@
-using JasperFx.Events;
-using Marten;
-using Microsoft.Extensions.AI;
-using Npgsql;
-using OllamaSharp;
-using SamaBot.Api.Features.Knowledge;
+using SamaBot.Api;
 using Wolverine;
 using Wolverine.Http;
-using Wolverine.Marten;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configuration Variables
 var connectionString = builder.Configuration.GetConnectionString("Marten")!;
-var ollamaUrl = builder.Configuration["Ollama:BaseUrl"] ?? "http://localhost:11434";
 
+// Remove hardcoded Ollama URL to fix SonarQube issue
+var ollamaUrl = builder.Configuration["Ollama:BaseUrl"]
+                ?? throw new InvalidOperationException("Ollama:BaseUrl is missing.");
+
+// 1. Core Services
 builder.Services.AddOpenApi();
+builder.Services.AddWolverineHttp();
 
-// 1. Nos aseguramos de que la extensión vectorial existe en la DB
-using (var conn = new NpgsqlConnection(connectionString))
-{
-    conn.Open();
-    using var cmd = conn.CreateCommand();
-    cmd.CommandText = "CREATE EXTENSION IF NOT EXISTS vector;";
-    cmd.ExecuteNonQuery();
-}
+// 2. Domain & Infrastructure Extensions
+builder.Services.AddDatabase(connectionString);
+builder.Services.AddAi(ollamaUrl);
+builder.Services.AddFeatures(builder.Configuration);
 
-// 2. DataSource normal. Ya NO necesitamos .UseVector() porque manejaremos los tipos en SQL
-builder.Services.AddNpgsqlDataSource(connectionString);
-
-builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
-    new OllamaApiClient(new Uri(ollamaUrl), "nomic-embed-text"));
-builder.Services.AddSingleton<IChatClient>(
-    new OllamaApiClient(new Uri(ollamaUrl), "llama3"));
-
-// 3. Configuración de Marten
-builder.Services.AddMarten(opts =>
-{
-    opts.Events.StreamIdentity = StreamIdentity.AsString;
-    opts.Storage.Add(new HnswIndexCustomizer());
-})
-.ApplyAllDatabaseChangesOnStartup()
-.UseNpgsqlDataSource()
-.UseLightweightSessions()
-.IntegrateWithWolverine();
-
+// 3. Host Configuration (Wolverine)
 builder.Host.UseWolverine(opts =>
 {
     opts.Policies.AutoApplyTransactions();
 });
 
-builder.Services.AddWolverineHttp();
-builder.Services.AddKnowledgeFeature();
-
 var app = builder.Build();
 
+// 4. Initialization Phase
+app.EnsureVectorExtensionExists(connectionString);
+
+// 5. HTTP Pipeline Configuration
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

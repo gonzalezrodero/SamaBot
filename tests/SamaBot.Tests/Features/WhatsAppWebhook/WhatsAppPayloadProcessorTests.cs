@@ -1,7 +1,8 @@
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Moq.AutoMock;
+using SamaBot.Api.Common.Configuration;
 using SamaBot.Api.Features.WhatsAppWebhook;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,19 +11,21 @@ namespace SamaBot.Tests.Features.WhatsAppWebhook;
 
 public class WhatsAppPayloadProcessorTests
 {
-    private readonly AutoMocker _mocker;
-    private readonly WhatsAppPayloadProcessor _sut;
+    private readonly AutoMocker mocker;
+    private readonly WhatsAppPayloadProcessor sut;
     private const string TestSecret = "my_super_secret_test_key";
     
     public WhatsAppPayloadProcessorTests()
     {
-        _mocker = new AutoMocker();
-        
-        // Setup the configuration mock before injecting it
-        var configMock = _mocker.GetMock<IConfiguration>();
-        configMock.Setup(c => c["WhatsApp:App_Secret"]).Returns(TestSecret);
-        
-        _sut = _mocker.CreateInstance<WhatsAppPayloadProcessor>();
+        mocker = new AutoMocker();
+
+        var options = Options.Create(new WhatsAppOptions
+        {
+            AppSecret = TestSecret
+        });
+        mocker.Use(options);
+
+        sut = mocker.CreateInstance<WhatsAppPayloadProcessor>();
     }
 
     [Fact]
@@ -37,7 +40,7 @@ public class WhatsAppPayloadProcessorTests
         context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(payload));
 
         // Act
-        var result = await _sut.IsSignatureValidAsync(context.Request);
+        var result = await sut.IsSignatureValidAsync(context.Request);
 
         // Assert
         result.Should().BeTrue();
@@ -52,7 +55,7 @@ public class WhatsAppPayloadProcessorTests
         context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes("""{"test":"payload"}"""));
 
         // Act
-        var result = await _sut.IsSignatureValidAsync(context.Request);
+        var result = await sut.IsSignatureValidAsync(context.Request);
 
         // Assert
         result.Should().BeFalse();
@@ -92,7 +95,7 @@ public class WhatsAppPayloadProcessorTests
         context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(payload));
 
         // Act
-        var result = await _sut.ExtractMessageAsync(context.Request);
+        var result = await sut.ExtractMessageAsync(context.Request);
 
         // Assert
         result.Should().NotBeNull();
