@@ -16,8 +16,8 @@ public class ReplyGeneratedHandler
         this.whatsappClient = whatsappClient;
         this.options = options.Value;
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(this.options.AccessToken, nameof(ReplyGeneratedHandler.options.AccessToken));
-        ArgumentException.ThrowIfNullOrWhiteSpace(this.options.PhoneNumberId, nameof(ReplyGeneratedHandler.options.PhoneNumberId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(this.options.AccessToken);
+        ArgumentException.ThrowIfNullOrWhiteSpace(this.options.PhoneNumberId);
     }
 
     public async Task Handle(ReplyGenerated @event, CancellationToken ct)

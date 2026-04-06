@@ -19,7 +19,9 @@ public class WhatsAppPayloadProcessor : IWhatsAppPayloadProcessor
     public WhatsAppPayloadProcessor(IOptions<WhatsAppOptions> options)
     {
         this.options = options.Value;
-        ArgumentException.ThrowIfNullOrWhiteSpace(this.options.AppSecret, nameof(WhatsAppPayloadProcessor.options.AppSecret));
+
+        // Removed explicit caller argument
+        ArgumentException.ThrowIfNullOrWhiteSpace(this.options.AppSecret);
     }
 
     public async Task<bool> IsSignatureValidAsync(HttpRequest request)
@@ -52,7 +54,7 @@ public class WhatsAppPayloadProcessor : IWhatsAppPayloadProcessor
         using var reader = new StreamReader(request.Body, Encoding.UTF8, leaveOpen: true);
         var body = await reader.ReadToEndAsync();
 
-        // Reset for downstream parsers (like the framework's own model binders)
+        // Reset for downstream parsers
         request.Body.Position = 0;
 
         return body;
@@ -73,37 +75,32 @@ public class WhatsAppPayloadProcessor : IWhatsAppPayloadProcessor
             using var document = JsonDocument.Parse(body);
             var root = document.RootElement;
 
-            // Navigating the standard Meta Webhook payload structure safely
-            if (root.TryGetProperty("entry", out var entries) && entries.GetArrayLength() > 0)
+            if (!root.TryGetProperty("entry", out var entries) || entries.GetArrayLength() == 0) return null;
+
+            var firstEntry = entries[0];
+            if (!firstEntry.TryGetProperty("changes", out var changes) || changes.GetArrayLength() == 0) return null;
+
+            var valueNode = changes[0].GetProperty("value");
+            if (!valueNode.TryGetProperty("messages", out var messages) || messages.GetArrayLength() == 0) return null;
+
+            var messageNode = messages[0];
+
+            var fromNumber = messageNode.GetProperty("from").GetString();
+            var messageId = messageNode.GetProperty("id").GetString();
+            var timestampStr = messageNode.GetProperty("timestamp").GetString();
+            var botNumberId = valueNode.GetProperty("metadata").GetProperty("phone_number_id").GetString();
+
+            if (!messageNode.TryGetProperty("text", out var textNode) || !textNode.TryGetProperty("body", out var bodyNode)) return null;
+
+            var messageText = bodyNode.GetString();
+
+            if (string.IsNullOrEmpty(fromNumber) || string.IsNullOrEmpty(messageText) || string.IsNullOrEmpty(messageId) || timestampStr == null || botNumberId == null)
             {
-                var firstEntry = entries[0];
-                if (firstEntry.TryGetProperty("changes", out var changes) && changes.GetArrayLength() > 0)
-                {
-                    var valueNode = changes[0].GetProperty("value");
-
-                    if (valueNode.TryGetProperty("messages", out var messages) && messages.GetArrayLength() > 0)
-                    {
-                        var messageNode = messages[0];
-
-                        var fromNumber = messageNode.GetProperty("from").GetString();
-                        var messageId = messageNode.GetProperty("id").GetString();
-                        var timestampStr = messageNode.GetProperty("timestamp").GetString();
-                        var botNumberId = valueNode.GetProperty("metadata").GetProperty("phone_number_id").GetString();
-
-                        // Check if it's a text message
-                        if (messageNode.TryGetProperty("text", out var textNode) && textNode.TryGetProperty("body", out var bodyNode))
-                        {
-                            var messageText = bodyNode.GetString();
-
-                            if (!string.IsNullOrEmpty(fromNumber) && !string.IsNullOrEmpty(messageText) && !string.IsNullOrEmpty(messageId) && timestampStr != null && botNumberId != null)
-                            {
-                                var timestamp = DateTimeOffset.FromUnixTimeSeconds(long.Parse(timestampStr));
-                                return new ProcessWhatsAppMessage(messageId, botNumberId, fromNumber, messageText, timestamp, body);
-                            }
-                        }
-                    }
-                }
+                return null;
             }
+
+            var timestamp = DateTimeOffset.FromUnixTimeSeconds(long.Parse(timestampStr));
+            return new ProcessWhatsAppMessage(messageId, botNumberId, fromNumber, messageText, timestamp, body);
         }
         catch (JsonException)
         {

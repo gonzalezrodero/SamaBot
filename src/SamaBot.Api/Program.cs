@@ -6,7 +6,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configuration Variables
 var connectionString = builder.Configuration.GetConnectionString("Marten")!;
-var ollamaUrl = builder.Configuration["Ollama:BaseUrl"] ?? "http://localhost:11434";
+
+// Remove hardcoded Ollama URL to fix SonarQube issue
+var ollamaUrl = builder.Configuration["Ollama:BaseUrl"]
+                ?? throw new InvalidOperationException("Ollama:BaseUrl is missing.");
 
 // 1. Core Services
 builder.Services.AddOpenApi();

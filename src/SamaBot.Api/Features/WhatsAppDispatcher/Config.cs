@@ -6,7 +6,8 @@ public static class Config
 {
     public static IServiceCollection AddWhatsAppDispatcherFeature(this IServiceCollection services, IConfiguration config)
     {
-        var baseUrl = config["WhatsApp:BaseUrl"] ?? "https://graph.facebook.com/v19.0";
+        var baseUrl = config["WhatsApp:BaseUrl"]
+                      ?? throw new InvalidOperationException("WhatsApp:BaseUrl is missing.");
 
         services.AddRefitClient<IWhatsAppClient>()
             .ConfigureHttpClient(c =>
