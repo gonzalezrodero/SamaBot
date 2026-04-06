@@ -6,6 +6,8 @@
   </Configurations>
   <Folder Name="/infra/" />
   <Folder Name="/infra/bootstrap/">
+    <File Path="infra/bootstrap/backend.tf" />
+    <File Path="infra/bootstrap/iam.tf" />
     <File Path="infra/bootstrap/main.tf" />
     <File Path="infra/bootstrap/outputs.tf" />
     <File Path="infra/bootstrap/variables.tf" />
