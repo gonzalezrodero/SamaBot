@@ -32,6 +32,7 @@ public class IntegrationAppFixture : IAsyncLifetime
         Host = await AlbaHost.For<Program>(builder =>
         {
             builder.UseSetting("ConnectionStrings:Marten", postgres.GetConnectionString());
+            builder.UseSetting("Ollama:BaseUrl", "http://localhost:11434");
 
             builder.ConfigureServices(services =>
             {
