@@ -4,9 +4,6 @@ on:
   push:
     branches: [ main ]
     paths: [ 'infra/**' ]
-  pull_request:
-    branches: [ main ]
-    paths: [ 'infra/**' ]
 
 permissions:
   id-token: write
@@ -32,7 +29,7 @@ jobs:
           aws-region: eu-west-1
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@b9cd54a3c349d322d5737b1acd11f7c32d43e261
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_wrapper: false
 
@@ -73,7 +70,7 @@ jobs:
           aws-region: eu-west-1
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@b9cd54a3c349d322d5737b1acd11f7c32d43e261
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_wrapper: false
 
