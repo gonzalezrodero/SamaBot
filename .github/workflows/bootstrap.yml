@@ -3,7 +3,14 @@ name: Bootstrap Deployment
 on:
   push:
     branches: [ main ]
-    paths: [ 'infra/**' ]
+    paths: 
+      - 'infra/bootstrap/**'
+      - '.github/workflows/bootstrap.yml'
+  pull_request:
+    branches: [ main ]
+    paths: 
+      - 'infra/bootstrap/**'
+      - '.github/workflows/bootstrap.yml'
 
 permissions:
   id-token: write

@@ -1,16 +1,16 @@
-name: Network Deployment
+name: Database Deployment
 
 on:
   push:
     branches: [ main ]
     paths: 
-      - 'infra/network/**'
-      - '.github/workflows/network.yml'
+      - 'infra/db/**'
+      - '.github/workflows/db.yml'
   pull_request:
     branches: [ main ]
     paths: 
-      - 'infra/network/**'
-      - '.github/workflows/network.yml'
+      - 'infra/db/**'
+      - '.github/workflows/db.yml'
 
 permissions:
   id-token: write
@@ -18,10 +18,10 @@ permissions:
 
 jobs:
   plan:
-    name: Terraform Plan (Network)
+    name: Terraform Plan (DB)
     runs-on: ubuntu-latest
     env:
-      TF_WORKING_DIR: 'infra/network'
+      TF_WORKING_DIR: 'infra/db'
     outputs:
       exitcode: ${{ steps.plan.outputs.exitcode }}
     
@@ -58,13 +58,13 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
 
   apply:
-    name: Terraform Apply (Network)
+    name: Terraform Apply (DB)
     needs: plan
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: development
     env:
-      TF_WORKING_DIR: 'infra/network'
+      TF_WORKING_DIR: 'infra/db'
     
     steps:
       - name: Checkout Code
