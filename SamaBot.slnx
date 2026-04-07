@@ -12,6 +12,12 @@
     <File Path="infra/bootstrap/outputs.tf" />
     <File Path="infra/bootstrap/variables.tf" />
   </Folder>
+  <Folder Name="/infra/compute/">
+    <File Path="infra/compute/alb.tf" />
+    <File Path="infra/compute/backend.tf" />
+    <File Path="infra/compute/ecr.tf" />
+    <File Path="infra/compute/variables.tf" />
+  </Folder>
   <Folder Name="/infra/db/">
     <File Path="infra/db/backend.tf" />
     <File Path="infra/db/main.tf" />
