@@ -3,10 +3,14 @@ name: Network Deployment
 on:
   push:
     branches: [ main ]
-    paths: [ 'infra/network/**' ] # Solo se dispara si tocamos la red
+    paths: 
+      - 'infra/network/**'
+      - '.github/workflows/network.yml'
   pull_request:
     branches: [ main ]
-    paths: [ 'infra/network/**' ]
+    paths: 
+      - 'infra/network/**'
+      - '.github/workflows/network.yml'
 
 permissions:
   id-token: write
@@ -14,10 +18,10 @@ permissions:
 
 jobs:
   plan:
-    name: Terraform Plan (Network)
+    name: Terraform Plan
     runs-on: ubuntu-latest
     env:
-      TF_WORKING_DIR: 'infra/network' # <--- APUNTAMOS A LA NUEVA CARPETA
+      TF_WORKING_DIR: 'infra/network'
     outputs:
       exitcode: ${{ steps.plan.outputs.exitcode }}
     
@@ -54,7 +58,7 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
 
   apply:
-    name: Terraform Apply (Network)
+    name: Terraform Apply
     needs: plan
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
