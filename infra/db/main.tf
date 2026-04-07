@@ -46,7 +46,7 @@ resource "aws_db_subnet_group" "db_subnets" {
 resource "aws_db_instance" "postgres" {
   identifier            = "${var.project_name}-db"
   engine                = "postgres"
-  engine_version        = "16.1"
+  engine_version        = "16.3"
   instance_class        = "db.t4g.micro"
   allocated_storage     = 20
   max_allocated_storage = 100
@@ -57,7 +57,6 @@ resource "aws_db_instance" "postgres" {
 
   storage_encrypted       = true
   backup_retention_period = 7
-  # ---------------------------------------
 
   db_subnet_group_name   = aws_db_subnet_group.db_subnets.name
   vpc_security_group_ids = [aws_security_group.db_sg.id]
