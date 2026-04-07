@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   plan:
-    name: Terraform Plan (DB)
+    name: Terraform Plan
     runs-on: ubuntu-latest
     env:
       TF_WORKING_DIR: 'infra/db'
@@ -58,7 +58,7 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
 
   apply:
-    name: Terraform Apply (DB)
+    name: Terraform Apply
     needs: plan
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest

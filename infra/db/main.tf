@@ -44,17 +44,17 @@ resource "aws_db_subnet_group" "db_subnets" {
 # RDS INSTANCE (PostgreSQL)
 # ==========================================
 resource "aws_db_instance" "postgres" {
-  identifier           = "${var.project_name}-db"
-  engine               = "postgres"
-  engine_version       = "16.1"
-  instance_class       = "db.t4g.micro" # Cost-effective Graviton instance
+  identifier            = "${var.project_name}-db"
+  engine                = "postgres"
+  engine_version        = "16.1"
+  instance_class        = "db.t4g.micro" # Cost-effective Graviton instance
   allocated_storage     = 20
   max_allocated_storage = 100
-  storage_type         = "gp3"
+  storage_type          = "gp3"
 
   db_name  = "chatbot"
   username = "dbadmin"
-  
+
   # Security settings
   db_subnet_group_name   = aws_db_subnet_group.db_subnets.name
   vpc_security_group_ids = [aws_security_group.db_sg.id]
