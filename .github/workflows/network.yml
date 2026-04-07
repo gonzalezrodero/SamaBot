@@ -1,9 +1,12 @@
-name: Infrastructure Deployment
+name: Network Deployment
 
 on:
   push:
     branches: [ main ]
-    paths: [ 'infra/**' ]
+    paths: [ 'infra/network/**' ] # Solo se dispara si tocamos la red
+  pull_request:
+    branches: [ main ]
+    paths: [ 'infra/network/**' ]
 
 permissions:
   id-token: write
@@ -11,19 +14,19 @@ permissions:
 
 jobs:
   plan:
-    name: Terraform Plan
+    name: Terraform Plan (Network)
     runs-on: ubuntu-latest
     env:
-      TF_WORKING_DIR: 'infra/bootstrap'
+      TF_WORKING_DIR: 'infra/network' # <--- APUNTAMOS A LA NUEVA CARPETA
     outputs:
       exitcode: ${{ steps.plan.outputs.exitcode }}
     
     steps:
       - name: Checkout Code
-        uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f
+        uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4.1.3
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: eu-west-1
@@ -35,7 +38,7 @@ jobs:
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
-        working-directory: 'infra'
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Init
         run: terraform init
@@ -51,13 +54,13 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
 
   apply:
-    name: Terraform Apply
+    name: Terraform Apply (Network)
     needs: plan
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: development
     env:
-      TF_WORKING_DIR: 'infra/bootstrap'
+      TF_WORKING_DIR: 'infra/network'
     
     steps:
       - name: Checkout Code
@@ -71,8 +74,6 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_wrapper: false
 
       - name: Terraform Init
         run: terraform init
