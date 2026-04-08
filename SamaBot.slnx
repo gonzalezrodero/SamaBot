@@ -13,6 +13,7 @@
     <File Path="infra/bootstrap/variables.tf" />
   </Folder>
   <Folder Name="/infra/compute/">
+    <File Path="infra/compute/acm.tf" />
     <File Path="infra/compute/alb.tf" />
     <File Path="infra/compute/backend.tf" />
     <File Path="infra/compute/ecr.tf" />
