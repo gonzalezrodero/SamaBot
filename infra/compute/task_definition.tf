@@ -8,7 +8,7 @@ data "aws_iam_policy_document" "ecs_task_execution_policy_extra" {
     resources = [
       # REFERENCIA CORREGIDA: Usamos el output del estado remoto de la DB
       data.terraform_remote_state.database.outputs.db_password_secret_arn,
-      "*" 
+      "*"
     ]
   }
 }
@@ -33,7 +33,7 @@ resource "aws_ecs_task_definition" "backend" {
       name      = "${var.project_name}-api-container"
       image     = "${aws_ecr_repository.backend.repository_url}:latest"
       essential = true
-      
+
       portMappings = [
         {
           containerPort = 8080
@@ -49,7 +49,7 @@ resource "aws_ecs_task_definition" "backend" {
 
       secrets = [
         {
-          name      = "DB_CREDENTIALS_JSON",
+          name = "DB_CREDENTIALS_JSON",
           # REFERENCIA CORREGIDA: Aquí también usamos el estado remoto
           valueFrom = data.terraform_remote_state.database.outputs.db_password_secret_arn
         }
