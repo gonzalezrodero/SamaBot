@@ -93,7 +93,7 @@ resource "aws_lb_target_group" "api" {
   target_type = "ip" # Required for Fargate
 
   health_check {
-    path                = "/health" 
+    path                = "/health"
     healthy_threshold   = 3
     unhealthy_threshold = 3
     timeout             = 5

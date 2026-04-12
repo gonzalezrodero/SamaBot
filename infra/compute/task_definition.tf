@@ -33,7 +33,7 @@ resource "aws_ecs_task_definition" "backend" {
   cpu                      = 256 # 0.25 vCPU - Cost-effective for MVP
   memory                   = 512 # 512 MB RAM
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  
+
   # Note: A 'task_role_arn' would be added here if the code itself needs to access S3/DynamoDB
   # For now, only the Execution Role is needed to pull the image and secrets
 
@@ -42,7 +42,7 @@ resource "aws_ecs_task_definition" "backend" {
       name      = "${var.project_name}-api-container"
       image     = "${aws_ecr_repository.backend.repository_url}:latest"
       essential = true
-      
+
       portMappings = [
         {
           containerPort = 8080 # Default .NET internal port
@@ -54,8 +54,8 @@ resource "aws_ecs_task_definition" "backend" {
       # Non-sensitive environment variables
       environment = [
         { name = "ASPNETCORE_ENVIRONMENT", value = var.app_environment },
-        { name = "DB_HOST", value = data.terraform_remote_state.database.outputs.db_endpoint }      
-        ]
+        { name = "DB_HOST", value = data.terraform_remote_state.database.outputs.db_endpoint }
+      ]
       # Security: Injecting the RDS password JSON directly into an environment variable
       # Your .NET code will need to parse this JSON string to get the 'password' field
       secrets = [

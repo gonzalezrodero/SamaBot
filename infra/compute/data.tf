@@ -13,7 +13,7 @@ data "terraform_remote_state" "database" {
   backend = "s3"
   config = {
     bucket = "chatbot-tf-state-543704476214"
-    key    = "db/terraform.tfstate" 
+    key    = "db/terraform.tfstate"
     region = "eu-west-1"
   }
 }
