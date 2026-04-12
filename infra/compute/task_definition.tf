@@ -1,9 +1,3 @@
-# 1. Fetch the DB Secret metadata created in the Database phase
-# The RDS instance ID was defined in the previous state
-data "aws_secretsmanager_secret" "db_password" {
-  name = "rds!db-chatbot-db" # Matches the identifier used during DB creation
-}
-
 # 2. Grant the ECS Task Execution Role permission to decrypt the secret
 # Security: This allows the Fargate agent to fetch credentials at runtime
 data "aws_iam_policy_document" "ecs_task_execution_policy_extra" {
@@ -61,7 +55,7 @@ resource "aws_ecs_task_definition" "backend" {
       secrets = [
         {
           name      = "DB_CREDENTIALS_JSON",
-          valueFrom = data.aws_secretsmanager_secret.db_password.arn
+          valueFrom = data.terraform_remote_state.database.outputs.db_password_secret_arn
         }
       ]
 
