@@ -54,7 +54,7 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        run: terraform plan -no-color
+        terraform plan -var-file=config/dev/config.tfvars -no-color
         working-directory: ${{ env.TF_WORKING_DIR }}
 
   apply:
@@ -86,5 +86,5 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        terraform apply -var-file=config/dev/config.tfvars -auto-approve -no-color
         working-directory: ${{ env.TF_WORKING_DIR }}
