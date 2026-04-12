@@ -1,0 +1,6 @@
+# Database Development Variables
+project_name        = "chatbot"
+aws_region          = "eu-west-1"
+db_instance_class   = "db.t3.micro"
+multi_az            = false
+allocated_storage   = 20

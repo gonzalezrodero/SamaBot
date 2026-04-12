@@ -1,9 +1,11 @@
 variable "aws_region" {
-  default = "eu-west-1"
+  description = "AWS region to deploy to"
+  type        = string
 }
 
 variable "project_name" {
-  default = "chatbot"
+  description = "Name of the project"
+  type        = string
 }
 
 variable "aws_account_id" {

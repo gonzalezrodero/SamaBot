@@ -83,3 +83,39 @@ resource "aws_lb_listener" "https" {
 
   depends_on = [aws_acm_certificate_validation.cert]
 }
+
+# Target Group for the ECS Service
+resource "aws_lb_target_group" "api" {
+  name        = "${var.project_name}-tg"
+  port        = 8080
+  protocol    = "HTTP"
+  vpc_id      = data.terraform_remote_state.network.outputs.vpc_id
+  target_type = "ip" # Required for Fargate
+
+  health_check {
+    path                = "/health" 
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    timeout             = 5
+    interval            = 30
+    matcher             = "200"
+  }
+}
+
+# Update the HTTPS listener to forward traffic to this Target Group
+# Replace the "fixed-response" in your aws_lb_listener.https with this:
+resource "aws_lb_listener_rule" "api_routing" {
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.api.arn
+  }
+
+  condition {
+    host_header {
+      values = ["api.core-webhook.eu"]
+    }
+  }
+}
