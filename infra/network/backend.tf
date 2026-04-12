@@ -1,10 +1,7 @@
+# backend.tf
 terraform {
   backend "s3" {
-    bucket       = "chatbot-tf-state-543704476214"
-    key          = "network/terraform.tfstate"
-    region       = "eu-west-1"
-    use_lockfile = true
-    encrypt      = true
+    # All values are injected via -backend-config=config/dev/config.remote
   }
 
   required_providers {

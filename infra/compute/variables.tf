@@ -1,11 +1,14 @@
 variable "aws_region" {
   description = "AWS region to deploy to"
   type        = string
-  default     = "eu-west-1"
 }
 
 variable "project_name" {
   description = "Name of the project"
   type        = string
-  default     = "chatbot"
+}
+
+variable "app_environment" {
+  description = "The environment name for ASP.NET Core"
+  type        = string
 }

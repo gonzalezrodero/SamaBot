@@ -45,7 +45,7 @@ jobs:
         working-directory: 'infra'
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -backend-config=config/dev/config.remote
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Validate
@@ -54,7 +54,7 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        run: terraform plan -no-color
+        terraform plan -var-file=config/dev/config.tfvars -no-color
         working-directory: ${{ env.TF_WORKING_DIR }}
 
   apply:
@@ -82,9 +82,9 @@ jobs:
           terraform_wrapper: false
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -backend-config=config/dev/config.remote
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        terraform apply -var-file=config/dev/config.tfvars -auto-approve -no-color
         working-directory: ${{ env.TF_WORKING_DIR }}
