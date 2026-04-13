@@ -1,3 +1,5 @@
+using JasperFx;
+using JasperFx.CodeGeneration;
 using JasperFx.Events;
 using JasperFx.Events.Projections;
 using Marten;
@@ -32,6 +34,11 @@ public static class Config
     public static IServiceCollection AddDatabase(this IServiceCollection services, string connectionString)
     {
         services.AddNpgsqlDataSource(connectionString);
+        services.CritterStackDefaults(opts =>
+        {
+            opts.Development.GeneratedCodeMode = TypeLoadMode.Static;
+            opts.Production.GeneratedCodeMode = TypeLoadMode.Static;
+        });
 
         services.AddMarten(opts =>
         {

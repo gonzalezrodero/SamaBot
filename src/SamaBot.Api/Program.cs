@@ -1,3 +1,5 @@
+using JasperFx;
+using JasperFx.CodeGeneration;
 using SamaBot.Api;
 using Wolverine;
 using Wolverine.Http;
@@ -29,7 +31,10 @@ builder.Host.UseWolverine(opts =>
 var app = builder.Build();
 
 // 4. Initialization Phase
-app.EnsureVectorExtensionExists(connectionString);
+if (!args.Contains("codegen"))
+{
+    app.EnsureVectorExtensionExists(connectionString);
+}
 
 // 5. HTTP Pipeline Configuration
 if (app.Environment.IsDevelopment())
@@ -40,4 +45,4 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.MapWolverineEndpoints();
 
-await app.RunAsync();
+return await app.RunJasperFxCommands(args);

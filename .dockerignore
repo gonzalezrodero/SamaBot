@@ -1,0 +1,30 @@
+# Source control
+.git
+.gitignore
+
+# Build artifacts
+**/bin
+**/obj
+**/publish
+**/out
+
+# IDE and Environment settings
+.vs
+.vscode
+*.user
+*.suo
+*.sln.dotsettings
+.idea
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Docker specific
+Dockerfile
+.dockerignore
+
+# Local secrets and environment files
+*.swp
+.env
+appsettings.Local.json
