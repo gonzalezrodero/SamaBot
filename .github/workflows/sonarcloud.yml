@@ -36,6 +36,9 @@ jobs:
 
       - name: Install coverage tool
         run: dotnet tool install --global dotnet-coverage
+            
+      - name: Pre-generate JasperFx static code
+        run: dotnet run --project src/SamaBot.Api/SamaBot.Api.csproj -- codegen write
 
       - name: Begin SonarCloud analysis
         env:

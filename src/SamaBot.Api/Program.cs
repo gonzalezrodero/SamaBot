@@ -1,5 +1,4 @@
 using JasperFx;
-using JasperFx.CodeGeneration;
 using SamaBot.Api;
 using Wolverine;
 using Wolverine.Http;
