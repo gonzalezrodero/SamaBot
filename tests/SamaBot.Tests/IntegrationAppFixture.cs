@@ -5,11 +5,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SamaBot.Api.Common.Configuration;
 using SamaBot.Api.Core.Entities;
-using SamaBot.Api.Features.Chat;             
-using SamaBot.Api.Features.Knowledge;        
+using SamaBot.Api.Features.Chat;
+using SamaBot.Api.Features.Knowledge;
 using SamaBot.Api.Features.LanguageDetection;
 using SamaBot.Api.Features.WhatsAppDispatcher;
-using SamaBot.Api.Features.WhatsAppWebhook;
 using Testcontainers.PostgreSql;
 using Wolverine;
 
@@ -25,8 +24,8 @@ public class IntegrationAppFixture : IAsyncLifetime
 
     public IAlbaHost Host { get; private set; } = null!;
 
-    // 🚀 CAMBIO 1: Mockeamos nuestro nuevo servicio de vectores
     public Mock<IEmbeddingService> EmbeddingMock { get; } = new();
+    public Mock<IChatService> ChatMock { get; } = new();
 
     public async Task InitializeAsync()
     {
@@ -37,7 +36,6 @@ public class IntegrationAppFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("AWS_REGION", "eu-west-1");
         Environment.SetEnvironmentVariable("AWS_ACCESS_KEY_ID", "testing");
         Environment.SetEnvironmentVariable("AWS_SECRET_ACCESS_KEY", "testing");
-        Environment.SetEnvironmentVariable("AWS_REGION", "eu-west-1");
         Environment.SetEnvironmentVariable("BedrockSettings__ModelId", "dummy-model");
         Environment.SetEnvironmentVariable("BedrockSettings__MaxTokens", "1000");
 
@@ -67,25 +65,21 @@ public class IntegrationAppFixture : IAsyncLifetime
                         opts.VerifyToken = "integration_test_verify_token";
                     });
 
-                    // --- MOCKS ---
 
                     EmbeddingMock.Setup(x => x.GenerateEmbeddingAsync(
                             It.IsAny<string>(),
                             It.IsAny<CancellationToken>()))
-                        .ReturnsAsync(new float[512]); 
+                        .ReturnsAsync(new float[512]);
 
                     services.AddSingleton(EmbeddingMock.Object);
 
-                    services.AddScoped<IWhatsAppPayloadProcessor, WhatsAppPayloadProcessor>();
-
-                    var chatClientMock = new Mock<IChatService>();
-                    chatClientMock.Setup(c => c.GetResponseAsync(
-                            It.IsAny<string>(), 
-                            It.IsAny<string>(), 
+                    ChatMock.Setup(c => c.GetResponseAsync(
+                            It.IsAny<string>(),
+                            It.IsAny<string>(),
                             It.IsAny<CancellationToken>()))
-                        .ReturnsAsync("es");
+                        .ReturnsAsync("Mocked AI Response: Soy SamaBot y esto es un test E2E.");
 
-                    services.AddSingleton(chatClientMock.Object);
+                    services.AddSingleton(ChatMock.Object);
 
                     var languageDetectorMock = new Mock<ILanguageDetector>();
                     languageDetectorMock.Setup(l => l.DetectLanguageAsync(
@@ -109,7 +103,7 @@ public class IntegrationAppFixture : IAsyncLifetime
         }
         catch (Exception ex)
         {
-            throw new Exception($"FATAL ERROR: {ex.Message}", ex);
+            throw new Exception($"FATAL ERROR IN FIXTURE: {ex.Message}", ex);
         }
     }
 
@@ -118,6 +112,7 @@ public class IntegrationAppFixture : IAsyncLifetime
         if (Host != null) await Host.DisposeAsync();
         await postgres.DisposeAsync();
 
+        // Limpieza de variables de entorno
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Marten", null);
         Environment.SetEnvironmentVariable("AWS_ACCESS_KEY_ID", null);

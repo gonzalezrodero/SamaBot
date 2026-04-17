@@ -32,8 +32,9 @@ public class MessageAnalyzedHandlerTests(IntegrationAppFixture fixture)
 
         replyGenerated.Should().NotBeNull("The handler should have appended a ReplyGenerated event to the stream.");
 
-        // Asserting the fallback mock value configured in IntegrationAppFixture
-        replyGenerated!.ReplyText.Should().Be("es");
+        // Asserting the mock value configured in IntegrationAppFixture
+        // Updated to match the string in the fixture
+        replyGenerated!.ReplyText.Should().Be("Mocked AI Response: Soy SamaBot y esto es un test E2E.");
         replyGenerated.MessageId.Should().Be("atomic.Chat1");
         replyGenerated.PhoneNumber.Should().Be(testPhone);
     }
