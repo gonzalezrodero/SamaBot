@@ -35,6 +35,9 @@ public class IntegrationAppFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
         Environment.SetEnvironmentVariable("ConnectionStrings__Marten", postgres.GetConnectionString());
         Environment.SetEnvironmentVariable("AWS_REGION", "eu-west-1");
+        Environment.SetEnvironmentVariable("AWS_ACCESS_KEY_ID", "testing");
+        Environment.SetEnvironmentVariable("AWS_SECRET_ACCESS_KEY", "testing");
+        Environment.SetEnvironmentVariable("AWS_REGION", "eu-west-1");
         Environment.SetEnvironmentVariable("BedrockSettings__ModelId", "dummy-model");
         Environment.SetEnvironmentVariable("BedrockSettings__MaxTokens", "1000");
 
@@ -117,6 +120,8 @@ public class IntegrationAppFixture : IAsyncLifetime
 
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Marten", null);
+        Environment.SetEnvironmentVariable("AWS_ACCESS_KEY_ID", null);
+        Environment.SetEnvironmentVariable("AWS_SECRET_ACCESS_KEY", null);
         Environment.SetEnvironmentVariable("AWS_REGION", null);
         Environment.SetEnvironmentVariable("BedrockSettings__ModelId", null);
         Environment.SetEnvironmentVariable("BedrockSettings__MaxTokens", null);
