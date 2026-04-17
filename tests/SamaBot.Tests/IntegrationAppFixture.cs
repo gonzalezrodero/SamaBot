@@ -10,6 +10,7 @@ using SamaBot.Api.Features.Chat;
 using SamaBot.Api.Features.Knowledge;
 using SamaBot.Api.Features.LanguageDetection;
 using SamaBot.Api.Features.WhatsAppDispatcher;
+using SamaBot.Api.Features.WhatsAppWebhook;
 using Testcontainers.PostgreSql;
 using Wolverine;
 
@@ -52,11 +53,6 @@ public class IntegrationAppFixture : IAsyncLifetime
                         opts.Schema.For<DocumentChunk>();
                     });
 
-                    services.Configure<WolverineOptions>(opts =>
-                    {
-                        opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate;
-                    });
-
                     services.Configure<WhatsAppOptions>(opts =>
                     {
                         opts.AccessToken = "integration_test_access_token";
@@ -66,13 +62,11 @@ public class IntegrationAppFixture : IAsyncLifetime
                         opts.VerifyToken = "integration_test_verify_token";
                     });
 
-
+                    // 1. Setup Mock behaviors
                     EmbeddingMock.Setup(x => x.GenerateEmbeddingAsync(
                             It.IsAny<string>(),
                             It.IsAny<CancellationToken>()))
                         .ReturnsAsync(new float[512]);
-
-                    services.Replace(ServiceDescriptor.Singleton(EmbeddingMock.Object));
 
                     ChatMock.Setup(c => c.GetResponseAsync(
                             It.IsAny<string>(),
@@ -80,15 +74,11 @@ public class IntegrationAppFixture : IAsyncLifetime
                             It.IsAny<CancellationToken>()))
                         .ReturnsAsync("Mocked AI Response: Soy SamaBot y esto es un test E2E.");
 
-                    services.Replace(ServiceDescriptor.Singleton(ChatMock.Object));
-
                     var languageDetectorMock = new Mock<ILanguageDetector>();
                     languageDetectorMock.Setup(l => l.DetectLanguageAsync(
                             It.IsAny<string>(),
                             It.IsAny<CancellationToken>()))
                         .ReturnsAsync("es");
-
-                    services.Replace(ServiceDescriptor.Singleton(languageDetectorMock.Object));
 
                     var whatsappClientMock = new Mock<IWhatsAppClient>();
                     whatsappClientMock.Setup(client => client.SendMessageAsync(
@@ -98,7 +88,22 @@ public class IntegrationAppFixture : IAsyncLifetime
                             It.IsAny<CancellationToken>()))
                         .ReturnsAsync(new WhatsAppResponse("whatsapp", [], []));
 
+                    // 2. Inject Mocks into standard DI
+                    services.Replace(ServiceDescriptor.Singleton(EmbeddingMock.Object));
+                    services.Replace(ServiceDescriptor.Singleton(ChatMock.Object));
+                    services.Replace(ServiceDescriptor.Singleton(languageDetectorMock.Object));
                     services.Replace(ServiceDescriptor.Singleton(whatsappClientMock.Object));
+
+                    // 3. Inject Mocks specifically into Wolverine to override pre-compiled handlers
+                    services.Configure<WolverineOptions>(opts =>
+                    {
+                        opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate;
+
+                        opts.Services.AddSingleton<IEmbeddingService>(EmbeddingMock.Object);
+                        opts.Services.AddSingleton<IChatService>(ChatMock.Object);
+                        opts.Services.AddSingleton<ILanguageDetector>(languageDetectorMock.Object);
+                        opts.Services.AddSingleton<IWhatsAppClient>(whatsappClientMock.Object);
+                    });
                 });
             });
         }
@@ -113,7 +118,6 @@ public class IntegrationAppFixture : IAsyncLifetime
         if (Host != null) await Host.DisposeAsync();
         await postgres.DisposeAsync();
 
-        // Limpieza de variables de entorno
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Marten", null);
         Environment.SetEnvironmentVariable("AWS_ACCESS_KEY_ID", null);
