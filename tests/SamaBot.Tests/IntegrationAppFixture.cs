@@ -2,6 +2,7 @@
 using JasperFx;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Moq;
 using SamaBot.Api.Common.Configuration;
 using SamaBot.Api.Core.Entities;
@@ -71,7 +72,7 @@ public class IntegrationAppFixture : IAsyncLifetime
                             It.IsAny<CancellationToken>()))
                         .ReturnsAsync(new float[512]);
 
-                    services.AddSingleton(EmbeddingMock.Object);
+                    services.Replace(ServiceDescriptor.Singleton(EmbeddingMock.Object));
 
                     ChatMock.Setup(c => c.GetResponseAsync(
                             It.IsAny<string>(),
@@ -79,7 +80,7 @@ public class IntegrationAppFixture : IAsyncLifetime
                             It.IsAny<CancellationToken>()))
                         .ReturnsAsync("Mocked AI Response: Soy SamaBot y esto es un test E2E.");
 
-                    services.AddSingleton(ChatMock.Object);
+                    services.Replace(ServiceDescriptor.Singleton(ChatMock.Object));
 
                     var languageDetectorMock = new Mock<ILanguageDetector>();
                     languageDetectorMock.Setup(l => l.DetectLanguageAsync(
@@ -87,7 +88,7 @@ public class IntegrationAppFixture : IAsyncLifetime
                             It.IsAny<CancellationToken>()))
                         .ReturnsAsync("es");
 
-                    services.AddSingleton(languageDetectorMock.Object);
+                    services.Replace(ServiceDescriptor.Singleton(languageDetectorMock.Object));
 
                     var whatsappClientMock = new Mock<IWhatsAppClient>();
                     whatsappClientMock.Setup(client => client.SendMessageAsync(
@@ -97,7 +98,7 @@ public class IntegrationAppFixture : IAsyncLifetime
                             It.IsAny<CancellationToken>()))
                         .ReturnsAsync(new WhatsAppResponse("whatsapp", [], []));
 
-                    services.AddSingleton(whatsappClientMock.Object);
+                    services.Replace(ServiceDescriptor.Singleton(whatsappClientMock.Object));
                 });
             });
         }
