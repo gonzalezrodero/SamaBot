@@ -99,3 +99,6 @@ override.tf.json
 
 # Include the lock file to ensure provider versions are consistent
 # !.terraform.lock.hcl
+
+# JasperFx / Wolverine / Marten generated code
+**/Internal/Generated/

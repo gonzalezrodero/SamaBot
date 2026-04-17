@@ -1,0 +1,19 @@
+name: PR Build Check
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'Dockerfile'
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test Docker Build (No Push)
+        run: |
+          docker build -t chatbot-api:test .
