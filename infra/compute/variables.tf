@@ -16,5 +16,5 @@ variable "app_environment" {
 variable "image_tag" {
   description = "The tag of the image to deploy (CalVer)"
   type        = string
-  default = "latest"
+  default     = "latest"
 }
