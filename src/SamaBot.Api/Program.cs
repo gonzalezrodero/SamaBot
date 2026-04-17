@@ -1,3 +1,4 @@
+﻿using Amazon.BedrockRuntime; // <-- Add AWS SDK using
 using JasperFx;
 using SamaBot.Api;
 using Wolverine;
@@ -8,17 +9,14 @@ var builder = WebApplication.CreateBuilder(args);
 // Configuration Variables
 var connectionString = builder.Configuration.GetConnectionString("Marten")!;
 
-// Remove hardcoded Ollama URL to fix SonarQube issue
-var ollamaUrl = builder.Configuration["Ollama:BaseUrl"]
-                ?? throw new InvalidOperationException("Ollama:BaseUrl is missing.");
-
 // 1. Core Services
 builder.Services.AddOpenApi();
 builder.Services.AddWolverineHttp();
 
 // 2. Domain & Infrastructure Extensions
 builder.Services.AddDatabase(connectionString);
-builder.Services.AddAi(ollamaUrl);
+
+builder.Services.AddAi(builder.Configuration);
 builder.Services.AddFeatures(builder.Configuration);
 
 // 3. Host Configuration (Wolverine)

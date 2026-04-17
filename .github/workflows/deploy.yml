@@ -1,4 +1,4 @@
-name: Deploy API to ECS
+name: "CI/CD: Build API & Deploy Compute"
 
 on:
   push:
@@ -6,7 +6,13 @@ on:
     paths:
       - 'src/**'
       - 'Dockerfile'
-      - 'terraform/**'
+      - 'infra/compute/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'Dockerfile'
+      - 'infra/compute/**'
   workflow_dispatch:
 
 env:
@@ -14,7 +20,8 @@ env:
   ECR_REPOSITORY: chatbot-api
   ECS_CLUSTER: chatbot-cluster
   ECS_SERVICE: chatbot-service
-  ROLE_TO_ASSUME: arn:aws:iam::543704476214:role/chatbot-github-deploy-role
+  ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_ARN }} 
+  TF_WORKING_DIR: 'infra/compute'
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
 
 permissions:
@@ -22,53 +29,87 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  build-and-plan:
+    name: "Build & Terraform Plan"
     runs-on: ubuntu-latest
+    outputs:
+      calver_tag: ${{ steps.calver.outputs.tag }}
+    
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Generate CalVer Tag
         id: calver
-        run: |
-          echo "tag=$(date +'%Y.%m.%d').${{ github.run_number }}" >> $GITHUB_OUTPUT
+        run: echo "tag=$(date +'%Y.%m.%d').${{ github.run_number }}" >> $GITHUB_OUTPUT
 
-      - name: Configure AWS credentials via OIDC
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
+        if: github.event_name != 'pull_request'
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, Tag, and Push image to Amazon ECR
-        id: build-image
+      - name: Build and Push Image
+        if: github.event_name != 'pull_request'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ steps.calver.outputs.tag }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      # ==========================================
-      # TERRAFORM DEPLOYMENT SECTION
-      # ==========================================
-      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init & Validate
+        run: |
+          terraform init -backend-config=config/dev/config.remote
+          terraform validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan \
+            -var-file=config/dev/config.tfvars \
+            -var="image_tag=${{ steps.calver.outputs.tag }}" \
+            -no-color
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+  apply:
+    name: "Terraform Apply"
+    needs: build-and-plan
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: development
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        working-directory: infra/compute
-        run: terraform init -backend-config=config/dev/config.remote -no-color
+        run: terraform init -backend-config=config/dev/config.remote
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Apply
-        working-directory: infra/compute
         run: |
           terraform apply \
             -var-file=config/dev/config.tfvars \
-            -var="image_tag=${{ steps.calver.outputs.tag }}" \
+            -var="image_tag=${{ needs.build-and-plan.outputs.calver_tag }}" \
             -auto-approve \
             -no-color
+        working-directory: ${{ env.TF_WORKING_DIR }}

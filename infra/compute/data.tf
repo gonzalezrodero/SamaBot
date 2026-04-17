@@ -17,3 +17,13 @@ data "terraform_remote_state" "database" {
     region = "eu-west-1"
   }
 }
+
+# Fetch bootstrap outputs (where we created the ECS Task Role for Bedrock)
+data "terraform_remote_state" "bootstrap" {
+  backend = "s3" # O el backend que estés usando
+  config = {
+    bucket = var.terraform_state_bucket
+    key    = "bootstrap/terraform.tfstate"
+    region = var.aws_region
+  }
+}

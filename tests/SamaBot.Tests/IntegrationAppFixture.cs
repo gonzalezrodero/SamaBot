@@ -1,11 +1,12 @@
-using Alba;
+﻿using Alba;
 using JasperFx;
 using Marten;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SamaBot.Api.Common.Configuration;
 using SamaBot.Api.Core.Entities;
+using SamaBot.Api.Features.Chat;             
+using SamaBot.Api.Features.Knowledge;        
 using SamaBot.Api.Features.LanguageDetection;
 using SamaBot.Api.Features.WhatsAppDispatcher;
 using SamaBot.Api.Features.WhatsAppWebhook;
@@ -24,7 +25,8 @@ public class IntegrationAppFixture : IAsyncLifetime
 
     public IAlbaHost Host { get; private set; } = null!;
 
-    public Mock<IEmbeddingGenerator<string, Embedding<float>>> EmbeddingMock { get; } = new();
+    // 🚀 CAMBIO 1: Mockeamos nuestro nuevo servicio de vectores
+    public Mock<IEmbeddingService> EmbeddingMock { get; } = new();
 
     public async Task InitializeAsync()
     {
@@ -32,7 +34,9 @@ public class IntegrationAppFixture : IAsyncLifetime
 
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
         Environment.SetEnvironmentVariable("ConnectionStrings__Marten", postgres.GetConnectionString());
-        Environment.SetEnvironmentVariable("Ollama__BaseUrl", "http://localhost:11434");
+        Environment.SetEnvironmentVariable("AWS_REGION", "eu-west-1");
+        Environment.SetEnvironmentVariable("BedrockSettings__ModelId", "dummy-model");
+        Environment.SetEnvironmentVariable("BedrockSettings__MaxTokens", "1000");
 
         try
         {
@@ -61,22 +65,22 @@ public class IntegrationAppFixture : IAsyncLifetime
                     });
 
                     // --- MOCKS ---
-                    EmbeddingMock.Setup(x => x.GenerateAsync(
-                            It.IsAny<IEnumerable<string>>(),
-                            It.IsAny<EmbeddingGenerationOptions>(),
+
+                    EmbeddingMock.Setup(x => x.GenerateEmbeddingAsync(
+                            It.IsAny<string>(),
                             It.IsAny<CancellationToken>()))
-                        .ReturnsAsync(new GeneratedEmbeddings<Embedding<float>>([new Embedding<float>(new float[768])]));
+                        .ReturnsAsync(new float[512]); 
 
                     services.AddSingleton(EmbeddingMock.Object);
+
                     services.AddScoped<IWhatsAppPayloadProcessor, WhatsAppPayloadProcessor>();
 
-                    var chatClientMock = new Mock<IChatClient>();
-                    var mockResponse = new ChatResponse(new ChatMessage(ChatRole.Assistant, "es"));
+                    var chatClientMock = new Mock<IChatService>();
                     chatClientMock.Setup(c => c.GetResponseAsync(
-                            It.IsAny<IEnumerable<ChatMessage>>(),
-                            It.IsAny<ChatOptions>(),
+                            It.IsAny<string>(), 
+                            It.IsAny<string>(), 
                             It.IsAny<CancellationToken>()))
-                        .ReturnsAsync(mockResponse);
+                        .ReturnsAsync("es");
 
                     services.AddSingleton(chatClientMock.Object);
 
@@ -113,7 +117,9 @@ public class IntegrationAppFixture : IAsyncLifetime
 
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Marten", null);
-        Environment.SetEnvironmentVariable("Ollama__BaseUrl", null);
+        Environment.SetEnvironmentVariable("AWS_REGION", null);
+        Environment.SetEnvironmentVariable("BedrockSettings__ModelId", null);
+        Environment.SetEnvironmentVariable("BedrockSettings__MaxTokens", null);
     }
 }
 

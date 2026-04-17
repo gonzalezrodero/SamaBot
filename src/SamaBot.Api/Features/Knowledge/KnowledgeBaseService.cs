@@ -1,5 +1,4 @@
 ﻿using Marten;
-using Microsoft.Extensions.AI;
 using SamaBot.Api.Core.Entities;
 
 namespace SamaBot.Api.Features.Knowledge;
@@ -12,14 +11,13 @@ public interface IKnowledgeBaseService
 
 public class KnowledgeBaseService(
     IDocumentSession session,
-    IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator)
+    IEmbeddingService embeddingService)
     : IKnowledgeBaseService
 {
     public async Task<IReadOnlyList<DocumentChunk>> SearchAsync(
             string query, int limit = 3, CancellationToken ct = default)
     {
-        var result = await embeddingGenerator.GenerateAsync([query], cancellationToken: ct);
-        var searchVector = result[0].Vector.ToArray();
+        var searchVector = await embeddingService.GenerateEmbeddingAsync(query, ct);
 
         var sql = @"
             SELECT data FROM mt_doc_documentchunk 
@@ -35,7 +33,8 @@ public class KnowledgeBaseService(
         var validChunks = contents.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
         if (validChunks.Count == 0) return;
 
-        var embeddings = await embeddingGenerator.GenerateAsync(validChunks, cancellationToken: ct);
+        var embeddingTasks = validChunks.Select(chunk => embeddingService.GenerateEmbeddingAsync(chunk, ct));
+        var embeddings = await Task.WhenAll(embeddingTasks);
 
         for (int i = 0; i < validChunks.Count; i++)
         {
@@ -43,7 +42,7 @@ public class KnowledgeBaseService(
                 Guid.NewGuid(),
                 validChunks[i],
                 source,
-                embeddings[i].Vector.ToArray(),
+                embeddings[i],
                 DateTimeOffset.UtcNow);
 
             session.Store(chunk);

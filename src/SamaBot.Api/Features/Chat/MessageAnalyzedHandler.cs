@@ -1,5 +1,4 @@
 ﻿using Marten;
-using Microsoft.Extensions.AI;
 using SamaBot.Api.Core.Events;
 using SamaBot.Api.Features.Knowledge;
 using System.Text;
@@ -8,7 +7,7 @@ namespace SamaBot.Api.Features.Chat;
 
 public class MessageAnalyzedHandler(
     IKnowledgeBaseService knowledgeBase,
-    IChatClient chatClient)
+    IChatService chatService) // 👈 Cambiamos IChatClient por tu nuevo servicio
 {
     private const string SystemPromptTemplate = """
         You are a helpful assistant on WhatsApp.
@@ -34,18 +33,16 @@ public class MessageAnalyzedHandler(
             contextBuilder.AppendLine(chunk.Content);
         }
 
-        // 2. AI Logic
+        // 2. AI Logic con Bedrock
         var systemMessage = string.Format(SystemPromptTemplate, @event.LanguageCode, contextBuilder);
-        var messages = new List<ChatMessage>
-        {
-            new(ChatRole.System, systemMessage),
-            new(ChatRole.User, @event.OriginalText)
-        };
 
-        var response = await chatClient.GetResponseAsync(messages, cancellationToken: ct);
-        var replyText = response.Text ?? "I'm sorry, I couldn't process that request.";
+        // Llamamos a Bedrock pasando el System y el User prompt por separado
+        var replyText = await chatService.GetResponseAsync(systemMessage, @event.OriginalText, ct);
 
-        // 3. Persistence & Event Sourcing
+        if (string.IsNullOrWhiteSpace(replyText))
+            replyText = "I'm sorry, I couldn't process that request.";
+
+        // 3. Persistence & Event Sourcing (Marten)
         var replyEvent = new ReplyGenerated(@event.MessageId, @event.PhoneNumber, replyText);
         session.Events.Append(@event.PhoneNumber, replyEvent);
 
