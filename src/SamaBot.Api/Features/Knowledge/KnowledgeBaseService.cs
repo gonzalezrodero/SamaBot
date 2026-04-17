@@ -16,14 +16,14 @@ public class KnowledgeBaseService(
     : IKnowledgeBaseService
 {
     public async Task<IReadOnlyList<DocumentChunk>> SearchAsync(
-        string query, int limit = 3, CancellationToken ct = default)
+            string query, int limit = 3, CancellationToken ct = default)
     {
         var result = await embeddingGenerator.GenerateAsync([query], cancellationToken: ct);
         var searchVector = result[0].Vector.ToArray();
 
         var sql = @"
             SELECT data FROM mt_doc_documentchunk 
-            ORDER BY CAST(data ->> 'Embedding' AS vector(768)) <=> CAST(? AS vector) 
+            ORDER BY public.extract_embedding(data) <=> CAST(? AS vector) 
             LIMIT ?";
 
         return [.. await session.QueryAsync<DocumentChunk>(sql, ct, searchVector, limit)];
