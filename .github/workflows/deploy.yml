@@ -61,9 +61,11 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
+        working-directory: infra/compute
         run: terraform init -backend-config=config/dev/config.remote -no-color
 
       - name: Terraform Apply
+        working-directory: infra/compute
         run: |
           terraform apply \
             -var-file=config/dev/config.tfvars \
