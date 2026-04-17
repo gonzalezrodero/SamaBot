@@ -10,7 +10,7 @@ data "aws_secretsmanager_secret_version" "db_creds" {
 locals {
   # Parse the JSON string from Secrets Manager into a map
   db_creds = jsondecode(data.aws_secretsmanager_secret_version.db_creds.secret_string)
-  
+
   # Assemble the full connection string using RDS endpoint, fixed port/db, and secret credentials
   # This avoids hardcoding sensitive data and allows dynamic host resolution
   marten_conn_string = "Host=${data.terraform_remote_state.database.outputs.db_endpoint};Port=5432;Database=samabot;Username=${local.db_creds.username};Password=${local.db_creds.password};"
