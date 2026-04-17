@@ -1,4 +1,4 @@
-﻿# ==============================================================================
+# ==============================================================================
 # 1. DYNAMIC CONNECTION STRING GENERATION 
 # ==============================================================================
 
@@ -20,7 +20,7 @@ locals {
 resource "aws_secretsmanager_secret" "app_connection_string" {
   name                    = "${var.project_name}/${var.app_environment}/marten-connection-string"
   description             = "Full secure connection string for Chatbot API"
-  recovery_window_in_days = 0 
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "app_connection_string_value" {
@@ -68,7 +68,7 @@ resource "aws_ecs_task_definition" "backend" {
 
   container_definitions = jsonencode([
     {
-      name      = "${var.project_name}-api-container"
+      name = "${var.project_name}-api-container"
       # 🚀 UPDATED: Now uses the image_tag variable instead of hardcoded :latest
       image     = "${aws_ecr_repository.backend.repository_url}:${var.image_tag}"
       essential = true
