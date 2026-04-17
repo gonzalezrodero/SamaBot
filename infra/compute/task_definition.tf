@@ -13,14 +13,14 @@ locals {
 
   # Assemble the full connection string using RDS endpoint, fixed port/db, and secret credentials
   # This avoids hardcoding sensitive data and allows dynamic host resolution
-  marten_conn_string = "Host=${data.terraform_remote_state.database.outputs.db_endpoint};Port=5432;Database=samabot;Username=${local.db_creds.username};Password=${local.db_creds.password};"
+  marten_conn_string = "Host=${data.terraform_remote_state.database.outputs.db_endpoint};Port=5432;Database=${var.project_name};Username=${local.db_creds.username};Password=${local.db_creds.password};"
 }
 
 # Create a dedicated Secret for the application connection string
 # This keeps the final string encrypted and out of plain-sight environment variables
 resource "aws_secretsmanager_secret" "app_connection_string" {
   name                    = "${var.project_name}/${var.app_environment}/marten-connection-string"
-  description             = "Full secure connection string for SamaBot API"
+  description             = "Full secure connection string for Chatbot API"
   recovery_window_in_days = 0 # Allows immediate deletion/recreation for dev iterations
 }
 
