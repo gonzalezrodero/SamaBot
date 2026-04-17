@@ -27,6 +27,7 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
 });
 
+builder.Services.AddHealthChecks();
 var app = builder.Build();
 
 // 4. Initialization Phase
@@ -44,4 +45,5 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.MapWolverineEndpoints();
 
+app.MapHealthChecks("/health");
 return await app.RunJasperFxCommands(args);
