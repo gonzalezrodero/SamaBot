@@ -17,11 +17,10 @@ locals {
 }
 
 # Create a dedicated Secret for the application connection string
-# This keeps the final string encrypted and out of plain-sight environment variables
 resource "aws_secretsmanager_secret" "app_connection_string" {
   name                    = "${var.project_name}/${var.app_environment}/marten-connection-string"
   description             = "Full secure connection string for Chatbot API"
-  recovery_window_in_days = 0 # Allows immediate deletion/recreation for dev iterations
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "app_connection_string_value" {
@@ -34,7 +33,6 @@ resource "aws_secretsmanager_secret_version" "app_connection_string_value" {
 # 2. IAM POLICY FOR ECS TASK EXECUTION
 # ==============================================================================
 
-# Policy document granting permission to read the required secrets
 data "aws_iam_policy_document" "ecs_task_execution_policy_extra" {
   statement {
     actions = [
@@ -70,8 +68,9 @@ resource "aws_ecs_task_definition" "backend" {
 
   container_definitions = jsonencode([
     {
-      name      = "${var.project_name}-api-container"
-      image     = "${aws_ecr_repository.backend.repository_url}:latest"
+      name = "${var.project_name}-api-container"
+      # 🚀 UPDATED: Now uses the image_tag variable instead of hardcoded :latest
+      image     = "${aws_ecr_repository.backend.repository_url}:${var.image_tag}"
       essential = true
 
       portMappings = [
@@ -104,7 +103,6 @@ resource "aws_ecs_task_definition" "backend" {
     }
   ])
 }
-
 
 # ==============================================================================
 # 4. CLOUDWATCH LOG GROUP
