@@ -49,7 +49,7 @@ jobs:
             /o:"gonzalezrodero-samabot" \
             /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.token="${SONAR_TOKEN}" \
-            /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
+            /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml \
             /d:sonar.terraform.provider.aws.version="6.0"
 
       - name: Build
