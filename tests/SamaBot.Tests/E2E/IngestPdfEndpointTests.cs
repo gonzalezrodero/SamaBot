@@ -1,7 +1,6 @@
 ﻿using Alba;
 using AwesomeAssertions;
 using Marten;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SamaBot.Api.Core.Entities;
@@ -23,13 +22,6 @@ public class IngestPdfEndpointTests(IntegrationAppFixture fixture) : IDisposable
         // Arrange
         CreateSimplePdf(_tempPdfPath, "Integration test content for RAG.");
         var request = new IngestPdfRequest(_tempPdfPath);
-
-        // Setup the mock via the fixture's exposed property
-        fixture.EmbeddingMock.Setup(x => x.GenerateAsync(
-                It.IsAny<IEnumerable<string>>(),
-                It.IsAny<EmbeddingGenerationOptions>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GeneratedEmbeddings<Embedding<float>>([new Embedding<float>(new float[768])]));
 
         // Act
         await fixture.Host.Scenario(s =>

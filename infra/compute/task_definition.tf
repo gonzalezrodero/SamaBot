@@ -12,7 +12,6 @@ locals {
   db_creds = jsondecode(data.aws_secretsmanager_secret_version.db_creds.secret_string)
 
   # Assemble the full connection string using RDS endpoint, fixed port/db, and secret credentials
-  # This avoids hardcoding sensitive data and allows dynamic host resolution
   marten_conn_string = "Host=${data.terraform_remote_state.database.outputs.db_endpoint};Port=5432;Database=${var.project_name};Username=${local.db_creds.username};Password=${local.db_creds.password};"
 }
 
@@ -64,12 +63,13 @@ resource "aws_ecs_task_definition" "backend" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = 256
   memory                   = 512
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+
+  execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn      = data.terraform_remote_state.bootstrap.outputs.ecs_task_role_arn
 
   container_definitions = jsonencode([
     {
-      name = "${var.project_name}-api-container"
-      # 🚀 UPDATED: Now uses the image_tag variable instead of hardcoded :latest
+      name      = "${var.project_name}-api-container"
       image     = "${aws_ecr_repository.backend.repository_url}:${var.image_tag}"
       essential = true
 

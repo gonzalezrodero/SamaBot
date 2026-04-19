@@ -1,6 +1,5 @@
 ﻿using AwesomeAssertions;
 using Marten;
-using Microsoft.Extensions.AI;
 using Moq;
 using Moq.AutoMock;
 using SamaBot.Api.Core.Entities;
@@ -26,15 +25,11 @@ public class KnowledgeBaseServiceTests
         var query = "Test query";
         var mockVector = new float[] { 0.1f, 0.2f, 0.3f };
 
-        var mockGeneratedEmbedding = new GeneratedEmbeddings<Embedding<float>>(
-            [new Embedding<float>(mockVector)]);
-
-        mocker.GetMock<IEmbeddingGenerator<string, Embedding<float>>>()
-            .Setup(e => e.GenerateAsync(
-                It.IsAny<IEnumerable<string>>(),
-                It.IsAny<EmbeddingGenerationOptions>(),
+        mocker.GetMock<IEmbeddingService>()
+            .Setup(e => e.GenerateEmbeddingAsync(
+                query,
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockGeneratedEmbedding);
+            .ReturnsAsync(mockVector);
 
         var expectedChunks = new List<DocumentChunk>
         {
@@ -72,15 +67,11 @@ public class KnowledgeBaseServiceTests
         var source = "SummerCamp_2026.pdf";
         var mockVector = new float[] { 0.5f, 0.5f, 0.5f };
 
-        var mockGeneratedEmbedding = new GeneratedEmbeddings<Embedding<float>>(
-            [new Embedding<float>(mockVector)]);
-
-        mocker.GetMock<IEmbeddingGenerator<string, Embedding<float>>>()
-            .Setup(e => e.GenerateAsync(
-                It.Is<IEnumerable<string>>(s => s.First() == content),
-                It.IsAny<EmbeddingGenerationOptions>(),
+        mocker.GetMock<IEmbeddingService>()
+            .Setup(e => e.GenerateEmbeddingAsync(
+                content,
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockGeneratedEmbedding);
+            .ReturnsAsync(mockVector);
 
         // Act
         await sut.IngestChunksAsync([content], source);

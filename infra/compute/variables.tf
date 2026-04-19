@@ -18,3 +18,8 @@ variable "image_tag" {
   type        = string
   default     = "latest"
 }
+
+variable "terraform_state_bucket" {
+  description = "Name of the S3 bucket where the bootstrap state is stored"
+  type        = string
+}

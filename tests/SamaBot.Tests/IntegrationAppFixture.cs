@@ -1,14 +1,17 @@
-using Alba;
+﻿using Alba;
+using Amazon.BedrockRuntime;
+using Amazon.BedrockRuntime.Model;
 using JasperFx;
 using Marten;
-using Microsoft.Extensions.AI;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Moq;
 using SamaBot.Api.Common.Configuration;
 using SamaBot.Api.Core.Entities;
-using SamaBot.Api.Features.LanguageDetection;
 using SamaBot.Api.Features.WhatsAppDispatcher;
 using SamaBot.Api.Features.WhatsAppWebhook;
+using System.Text;
 using Testcontainers.PostgreSql;
 using Wolverine;
 
@@ -16,7 +19,7 @@ namespace SamaBot.Tests;
 
 public class IntegrationAppFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg16")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("pgvector/pgvector:pg16")
         .WithDatabase("samabot_test")
         .WithUsername("postgres")
         .WithPassword("postgres")
@@ -24,100 +27,108 @@ public class IntegrationAppFixture : IAsyncLifetime
 
     public IAlbaHost Host { get; private set; } = null!;
 
-    public Mock<IEmbeddingGenerator<string, Embedding<float>>> EmbeddingMock { get; } = new();
+    // 🚀 TU IDEA: Solo mockeamos las fronteras externas. Ni ChatService ni LanguageDetector.
+    public Mock<IAmazonBedrockRuntime> BedrockClientMock { get; } = new();
+    public Mock<IWhatsAppClient> WhatsAppClientMock { get; } = new();
 
     public async Task InitializeAsync()
     {
-        await postgres.StartAsync();
+        await _postgres.StartAsync();
 
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
-        Environment.SetEnvironmentVariable("ConnectionStrings__Marten", postgres.GetConnectionString());
-        Environment.SetEnvironmentVariable("Ollama__BaseUrl", "http://localhost:11434");
+        Environment.SetEnvironmentVariable("ConnectionStrings__Marten", _postgres.GetConnectionString());
+        Environment.SetEnvironmentVariable("AWS_REGION", "eu-west-1");
+        Environment.SetEnvironmentVariable("AWS_ACCESS_KEY_ID", "testing");
+        Environment.SetEnvironmentVariable("AWS_SECRET_ACCESS_KEY", "testing");
+        Environment.SetEnvironmentVariable("BedrockSettings__ModelId", "dummy-model");
 
-        try
+        Host = await AlbaHost.For<Program>(builder =>
         {
-            Host = await AlbaHost.For<Program>(builder =>
+            builder.UseDefaultServiceProvider(options => options.ValidateScopes = false);
+
+            builder.ConfigureServices(services =>
             {
-                builder.ConfigureServices(services =>
-                {
-                    services.Configure<StoreOptions>(opts =>
-                    {
-                        opts.AutoCreateSchemaObjects = AutoCreate.All;
-                        opts.Schema.For<DocumentChunk>();
-                    });
+                SetupMockResponses();
 
-                    services.Configure<WolverineOptions>(opts =>
-                    {
-                        opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate;
-                    });
+                // 🚀 EL FIX CRÍTICO: Poner el tipo explícito <IAmazonBedrockRuntime>
+                // Esto garantiza que sobreescribimos el cliente real y evitamos que vaya a AWS.
+                services.Replace(ServiceDescriptor.Singleton<IAmazonBedrockRuntime>(BedrockClientMock.Object));
+                services.Replace(ServiceDescriptor.Singleton<IWhatsAppClient>(WhatsAppClientMock.Object));
 
-                    services.Configure<WhatsAppOptions>(opts =>
-                    {
-                        opts.AccessToken = "integration_test_access_token";
-                        opts.BaseUrl = "https://dummy-whatsapp-api.com";
-                        opts.PhoneNumberId = "integration_test_phone_id";
-                        opts.AppSecret = "integration_test_secret";
-                        opts.VerifyToken = "integration_test_verify_token";
-                    });
+                services.Configure<WolverineOptions>(opts =>
+                    opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate);
 
-                    // --- MOCKS ---
-                    EmbeddingMock.Setup(x => x.GenerateAsync(
-                            It.IsAny<IEnumerable<string>>(),
-                            It.IsAny<EmbeddingGenerationOptions>(),
-                            It.IsAny<CancellationToken>()))
-                        .ReturnsAsync(new GeneratedEmbeddings<Embedding<float>>([new Embedding<float>(new float[768])]));
+                services.Configure<StoreOptions>(opts => {
+                    opts.AutoCreateSchemaObjects = AutoCreate.All;
+                    opts.Schema.For<DocumentChunk>();
+                });
 
-                    services.AddSingleton(EmbeddingMock.Object);
-                    services.AddScoped<IWhatsAppPayloadProcessor, WhatsAppPayloadProcessor>();
-
-                    var chatClientMock = new Mock<IChatClient>();
-                    var mockResponse = new ChatResponse(new ChatMessage(ChatRole.Assistant, "es"));
-                    chatClientMock.Setup(c => c.GetResponseAsync(
-                            It.IsAny<IEnumerable<ChatMessage>>(),
-                            It.IsAny<ChatOptions>(),
-                            It.IsAny<CancellationToken>()))
-                        .ReturnsAsync(mockResponse);
-
-                    services.AddSingleton(chatClientMock.Object);
-
-                    var languageDetectorMock = new Mock<ILanguageDetector>();
-                    languageDetectorMock.Setup(l => l.DetectLanguageAsync(
-                            It.IsAny<string>(),
-                            It.IsAny<CancellationToken>()))
-                        .ReturnsAsync("es");
-
-                    services.AddSingleton(languageDetectorMock.Object);
-
-                    var whatsappClientMock = new Mock<IWhatsAppClient>();
-                    whatsappClientMock.Setup(client => client.SendMessageAsync(
-                            It.IsAny<string>(),
-                            It.IsAny<WhatsAppTextRequest>(),
-                            It.IsAny<string>(),
-                            It.IsAny<CancellationToken>()))
-                        .ReturnsAsync(new WhatsAppResponse("whatsapp", [], []));
-
-                    services.AddSingleton(whatsappClientMock.Object);
+                services.Configure<WhatsAppOptions>(opts => {
+                    opts.AccessToken = "integration_test_access_token";
+                    opts.BaseUrl = "https://dummy-whatsapp-api.com";
+                    opts.PhoneNumberId = "integration_test_phone_id";
+                    opts.AppSecret = "integration_test_secret";
+                    opts.VerifyToken = "integration_test_verify_token";
                 });
             });
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"FATAL ERROR: {ex.Message}", ex);
-        }
+        });
+    }
+
+    private void SetupMockResponses()
+    {
+        WhatsAppClientMock.Setup(x => x.SendMessageAsync(It.IsAny<string>(), It.IsAny<WhatsAppTextRequest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WhatsAppResponse("ok", [], []));
+
+        BedrockClientMock.Setup(x => x.InvokeModelAsync(It.IsAny<InvokeModelRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((InvokeModelRequest request, CancellationToken ct) =>
+            {
+                var requestJson = Encoding.UTF8.GetString(request.Body.ToArray());
+                string jsonResponse;
+
+                if (requestJson.Contains("inputText") || requestJson.Contains("texts") || (request.ModelId?.Contains("embed") ?? false))
+                {
+                    var vector512 = new float[512];
+                    vector512[0] = 0.1f;
+                    var vectorJson = System.Text.Json.JsonSerializer.Serialize(vector512);
+
+                    jsonResponse = $$"""
+                    {
+                        "embedding": {{vectorJson}},
+                        "embeddings": [{{vectorJson}}]
+                    }
+                    """;
+                }
+                else if (requestJson.Contains("language detection module"))
+                {
+                    jsonResponse = $$"""
+                    {
+                        "content": [ { "text": "es" } ]
+                    }
+                    """;
+                }
+                else
+                {
+                    jsonResponse = $$"""
+                    {
+                        "content": [ { "text": "Mocked AI Response: Soy SamaBot y esto es un test E2E." } ]
+                    }
+                    """;
+                }
+
+                return new InvokeModelResponse
+                {
+                    HttpStatusCode = System.Net.HttpStatusCode.OK,
+                    Body = new MemoryStream(Encoding.UTF8.GetBytes(jsonResponse)) { Position = 0 }
+                };
+            });
     }
 
     public async Task DisposeAsync()
     {
         if (Host != null) await Host.DisposeAsync();
-        await postgres.DisposeAsync();
-
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
-        Environment.SetEnvironmentVariable("ConnectionStrings__Marten", null);
-        Environment.SetEnvironmentVariable("Ollama__BaseUrl", null);
+        await _postgres.DisposeAsync();
     }
 }
 
 [CollectionDefinition("Integration")]
-public class IntegrationCollection : ICollectionFixture<IntegrationAppFixture>
-{
-}
+public class IntegrationCollection : ICollectionFixture<IntegrationAppFixture> { }

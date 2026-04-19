@@ -1,13 +1,13 @@
+using Amazon.BedrockRuntime;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Events;
 using JasperFx.Events.Projections;
 using Marten;
-using Microsoft.Extensions.AI;
 using Npgsql;
-using OllamaSharp;
 using SamaBot.Api.Common.Configuration;
 using SamaBot.Api.Core.Entities;
+using SamaBot.Api.Features.Chat;
 using SamaBot.Api.Features.Knowledge;
 using SamaBot.Api.Features.LanguageDetection;
 using SamaBot.Api.Features.WhatsAppDispatcher;
@@ -54,13 +54,18 @@ public static class Config
         return services;
     }
 
-    public static IServiceCollection AddAi(this IServiceCollection services, string ollamaUrl)
+    public static IServiceCollection AddAi(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
-            new OllamaApiClient(new Uri(ollamaUrl), "nomic-embed-text"));
+        // Bind settings from appsettings.json
+        services.Configure<BedrockSettings>(configuration.GetSection("BedrockSettings"));
 
-        services.AddSingleton<IChatClient>(
-            new OllamaApiClient(new Uri(ollamaUrl), "llama3"));
+        // Register AWS Bedrock Client (It will automatically use the ECS Task Role)
+        services.AddDefaultAWSOptions(configuration.GetAWSOptions());
+        services.AddAWSService<IAmazonBedrockRuntime>();
+
+        // Register our custom Bedrock services
+        services.AddScoped<IChatService, ChatService>();
+        services.AddScoped<IEmbeddingService, EmbeddingService>();
 
         return services;
     }
@@ -73,18 +78,18 @@ public static class Config
         using var cmd = conn.CreateCommand();
 
         cmd.CommandText = @"
-        CREATE EXTENSION IF NOT EXISTS vector;
+            CREATE EXTENSION IF NOT EXISTS vector;
 
-        CREATE OR REPLACE FUNCTION public.extract_embedding(data jsonb) 
-        RETURNS vector IMMUTABLE PARALLEL SAFE AS $$
-        BEGIN
-            -- Ensure 'Embedding' matches your C# property name exactly
-            RETURN CAST(data ->> 'Embedding' AS vector(768));
-        EXCEPTION WHEN OTHERS THEN
-            -- Fallback to a zero vector to avoid crashing the index
-            RETURN array_fill(0, ARRAY[768])::vector;
-        END;
-        $$ LANGUAGE plpgsql;";
+            CREATE OR REPLACE FUNCTION public.extract_embedding(data jsonb) 
+            RETURNS vector IMMUTABLE PARALLEL SAFE AS $$
+            BEGIN
+                -- Ensure 'Embedding' matches your C# property name exactly
+                RETURN CAST(data ->> 'Embedding' AS vector(512));
+            EXCEPTION WHEN OTHERS THEN
+                -- Fallback to a zero vector to avoid crashing the index
+                RETURN array_fill(0, ARRAY[512])::vector;
+            END;
+            $$ LANGUAGE plpgsql;";
 
         cmd.ExecuteNonQuery();
 

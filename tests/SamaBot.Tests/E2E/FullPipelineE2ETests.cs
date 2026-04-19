@@ -1,7 +1,6 @@
 using Alba;
 using AwesomeAssertions;
 using Marten;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SamaBot.Api.Core.Events;
@@ -27,13 +26,6 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
         var secretInfo = "The secret access code for SamaBot is 998877.";
         CreateTestPdf(tempPdfPath, secretInfo);
 
-        var mockVector = new float[768];
-        mockVector[0] = 1.0f;
-
-        fixture.EmbeddingMock.Setup(x => x.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GeneratedEmbeddings<Embedding<float>>([new Embedding<float>(mockVector)]));
-
-        // Ingest the PDF via API
         await fixture.Host.Scenario(s =>
         {
             s.Post.Json(new IngestPdfRequest(tempPdfPath)).ToUrl("/api/admin/ingest");

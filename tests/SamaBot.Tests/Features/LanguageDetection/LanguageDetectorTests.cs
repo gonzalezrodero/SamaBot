@@ -1,7 +1,7 @@
 using AwesomeAssertions;
-using Microsoft.Extensions.AI;
 using Moq;
 using Moq.AutoMock;
+using SamaBot.Api.Features.Chat;
 using SamaBot.Api.Features.LanguageDetection;
 
 namespace SamaBot.Tests.Features.LanguageDetection;
@@ -23,15 +23,17 @@ public class LanguageDetectorTests
     [InlineData("ca", "ca")]
     [InlineData(" ES ", "es")] // Tests trimming
     [InlineData("INVALID", "ca")] // Tests fallback constraint
+    [InlineData(null, "ca")] // Tests null fallback (buena práctica añadir este también)
     [InlineData("", "ca")] // Tests empty fallback
-    public async Task DetectLanguageAsync_ReturnsEnforcedISOFormat(string mockLlmResponse, string expectedResult)
+    public async Task DetectLanguageAsync_ReturnsEnforcedISOFormat(string? mockLlmResponse, string expectedResult)
     {
         // Arrange
-        var mockResponse = new ChatResponse(new ChatMessage(ChatRole.Assistant, mockLlmResponse));
-        
-        _mocker.GetMock<IChatClient>()
-            .Setup(c => c.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockResponse);
+        _mocker.GetMock<IChatService>()
+            .Setup(c => c.GetResponseAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockLlmResponse!);
 
         // Act
         var result = await _sut.DetectLanguageAsync("Some text to analyze");
