@@ -3,9 +3,13 @@ using SamaBot.Api.Core.Events;
 
 namespace SamaBot.Api.Features.LanguageDetection;
 
-public class MessageReceivedHandler(ILanguageDetector languageDetector)
+public class MessageReceivedHandler
 {
-    public async Task<MessageAnalyzed> Handle(MessageReceived @event, IDocumentSession session, CancellationToken cancellationToken)
+    public async Task<MessageAnalyzed> Handle(
+        MessageReceived @event, 
+        IDocumentSession session, 
+        ILanguageDetector languageDetector, 
+        CancellationToken cancellationToken)
     {
         // Use the LLM abstraction to classify the language
         var languageCode = await languageDetector.DetectLanguageAsync(@event.Text, cancellationToken);

@@ -5,9 +5,7 @@ using System.Text;
 
 namespace SamaBot.Api.Features.Chat;
 
-public class MessageAnalyzedHandler(
-    IKnowledgeBaseService knowledgeBase,
-    IChatService chatService) // 👈 Cambiamos IChatClient por tu nuevo servicio
+public class MessageAnalyzedHandler
 {
     private const string SystemPromptTemplate = """
         You are a helpful assistant on WhatsApp.
@@ -22,6 +20,8 @@ public class MessageAnalyzedHandler(
     public async Task<ReplyGenerated> Handle(
         MessageAnalyzed @event,
         IDocumentSession session,
+        IKnowledgeBaseService knowledgeBase,
+        IChatService chatService,
         CancellationToken ct)
     {
         // 1. RAG - Retrieval
