@@ -10,7 +10,6 @@ using SamaBot.Api.Features.Chat;
 using SamaBot.Api.Features.Knowledge;
 using SamaBot.Api.Features.LanguageDetection;
 using SamaBot.Api.Features.WhatsAppDispatcher;
-using SamaBot.Api.Features.WhatsAppWebhook;
 using Testcontainers.PostgreSql;
 using Wolverine;
 
@@ -33,6 +32,7 @@ public class IntegrationAppFixture : IAsyncLifetime
     {
         await postgres.StartAsync();
 
+        // Environment variables for AWS SDK safety during Host initialization
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
         Environment.SetEnvironmentVariable("ConnectionStrings__Marten", postgres.GetConnectionString());
         Environment.SetEnvironmentVariable("AWS_REGION", "eu-west-1");
@@ -47,6 +47,39 @@ public class IntegrationAppFixture : IAsyncLifetime
             {
                 builder.ConfigureServices(services =>
                 {
+                    // 1. Mock setups
+                    EmbeddingMock.Setup(x => x.GenerateEmbeddingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                        .ReturnsAsync(new float[512]);
+
+                    ChatMock.Setup(c => c.GetResponseAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                        .ReturnsAsync("Mocked AI Response: Soy SamaBot y esto es un test E2E.");
+
+                    var languageDetectorMock = new Mock<ILanguageDetector>();
+                    languageDetectorMock.Setup(l => l.DetectLanguageAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                        .ReturnsAsync("es");
+
+                    var whatsappClientMock = new Mock<IWhatsAppClient>();
+                    whatsappClientMock.Setup(client => client.SendMessageAsync(It.IsAny<string>(), It.IsAny<WhatsAppTextRequest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                        .ReturnsAsync(new WhatsAppResponse("whatsapp", [], []));
+
+                    // 2. Force service replacement in the main container
+                    services.Replace(ServiceDescriptor.Singleton<IEmbeddingService>(EmbeddingMock.Object));
+                    services.Replace(ServiceDescriptor.Singleton<IChatService>(ChatMock.Object));
+                    services.Replace(ServiceDescriptor.Singleton<ILanguageDetector>(languageDetectorMock.Object));
+                    services.Replace(ServiceDescriptor.Singleton<IWhatsAppClient>(whatsappClientMock.Object));
+
+                    // 3. Force Wolverine to use these instances for pre-compiled handlers
+                    services.Configure<WolverineOptions>(opts =>
+                    {
+                        opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate;
+
+                        opts.Services.AddSingleton<IEmbeddingService>(EmbeddingMock.Object);
+                        opts.Services.AddSingleton<IChatService>(ChatMock.Object);
+                        opts.Services.AddSingleton<ILanguageDetector>(languageDetectorMock.Object);
+                        opts.Services.AddSingleton<IWhatsAppClient>(whatsappClientMock.Object);
+                    });
+
+                    // 4. Infrastructure settings
                     services.Configure<StoreOptions>(opts =>
                     {
                         opts.AutoCreateSchemaObjects = AutoCreate.All;
@@ -60,49 +93,6 @@ public class IntegrationAppFixture : IAsyncLifetime
                         opts.PhoneNumberId = "integration_test_phone_id";
                         opts.AppSecret = "integration_test_secret";
                         opts.VerifyToken = "integration_test_verify_token";
-                    });
-
-                    // 1. Setup Mock behaviors
-                    EmbeddingMock.Setup(x => x.GenerateEmbeddingAsync(
-                            It.IsAny<string>(),
-                            It.IsAny<CancellationToken>()))
-                        .ReturnsAsync(new float[512]);
-
-                    ChatMock.Setup(c => c.GetResponseAsync(
-                            It.IsAny<string>(),
-                            It.IsAny<string>(),
-                            It.IsAny<CancellationToken>()))
-                        .ReturnsAsync("Mocked AI Response: Soy SamaBot y esto es un test E2E.");
-
-                    var languageDetectorMock = new Mock<ILanguageDetector>();
-                    languageDetectorMock.Setup(l => l.DetectLanguageAsync(
-                            It.IsAny<string>(),
-                            It.IsAny<CancellationToken>()))
-                        .ReturnsAsync("es");
-
-                    var whatsappClientMock = new Mock<IWhatsAppClient>();
-                    whatsappClientMock.Setup(client => client.SendMessageAsync(
-                            It.IsAny<string>(),
-                            It.IsAny<WhatsAppTextRequest>(),
-                            It.IsAny<string>(),
-                            It.IsAny<CancellationToken>()))
-                        .ReturnsAsync(new WhatsAppResponse("whatsapp", [], []));
-
-                    // 2. Inject Mocks into standard DI
-                    services.Replace(ServiceDescriptor.Singleton(EmbeddingMock.Object));
-                    services.Replace(ServiceDescriptor.Singleton(ChatMock.Object));
-                    services.Replace(ServiceDescriptor.Singleton(languageDetectorMock.Object));
-                    services.Replace(ServiceDescriptor.Singleton(whatsappClientMock.Object));
-
-                    // 3. Inject Mocks specifically into Wolverine to override pre-compiled handlers
-                    services.Configure<WolverineOptions>(opts =>
-                    {
-                        opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate;
-
-                        opts.Services.AddSingleton<IEmbeddingService>(EmbeddingMock.Object);
-                        opts.Services.AddSingleton<IChatService>(ChatMock.Object);
-                        opts.Services.AddSingleton<ILanguageDetector>(languageDetectorMock.Object);
-                        opts.Services.AddSingleton<IWhatsAppClient>(whatsappClientMock.Object);
                     });
                 });
             });
@@ -118,6 +108,7 @@ public class IntegrationAppFixture : IAsyncLifetime
         if (Host != null) await Host.DisposeAsync();
         await postgres.DisposeAsync();
 
+        // Clean up environment variables
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Marten", null);
         Environment.SetEnvironmentVariable("AWS_ACCESS_KEY_ID", null);
