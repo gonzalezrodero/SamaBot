@@ -23,11 +23,6 @@ public class IngestPdfEndpointTests(IntegrationAppFixture fixture) : IDisposable
         CreateSimplePdf(_tempPdfPath, "Integration test content for RAG.");
         var request = new IngestPdfRequest(_tempPdfPath);
 
-        fixture.EmbeddingMock.Setup(x => x.GenerateEmbeddingAsync(
-                It.IsAny<string>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new float[512]);
-
         // Act
         await fixture.Host.Scenario(s =>
         {

@@ -9,8 +9,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Moq;
 using SamaBot.Api.Common.Configuration;
 using SamaBot.Api.Core.Entities;
-using SamaBot.Api.Features.Knowledge;
 using SamaBot.Api.Features.WhatsAppDispatcher;
+using SamaBot.Api.Features.WhatsAppWebhook;
 using System.Text;
 using Testcontainers.PostgreSql;
 using Wolverine;
@@ -21,12 +21,13 @@ public class IntegrationAppFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("pgvector/pgvector:pg16")
         .WithDatabase("samabot_test")
+        .WithUsername("postgres")
+        .WithPassword("postgres")
         .Build();
 
     public IAlbaHost Host { get; private set; } = null!;
 
-    // 🚀 SOLO MOCKEAMOS LA INFRAESTRUCTURA EXTERNA
-    public Mock<IEmbeddingService> EmbeddingMock { get; } = new();
+    // 🚀 TU IDEA: Solo mockeamos las fronteras externas. Ni ChatService ni LanguageDetector.
     public Mock<IAmazonBedrockRuntime> BedrockClientMock { get; } = new();
     public Mock<IWhatsAppClient> WhatsAppClientMock { get; } = new();
 
@@ -49,15 +50,19 @@ public class IntegrationAppFixture : IAsyncLifetime
             {
                 SetupMockResponses();
 
-                services.Replace(ServiceDescriptor.Singleton(BedrockClientMock.Object));
-                services.Replace(ServiceDescriptor.Singleton(EmbeddingMock.Object));
-                services.Replace(ServiceDescriptor.Singleton(WhatsAppClientMock.Object));
+                // 🚀 EL FIX CRÍTICO: Poner el tipo explícito <IAmazonBedrockRuntime>
+                // Esto garantiza que sobreescribimos el cliente real y evitamos que vaya a AWS.
+                services.Replace(ServiceDescriptor.Singleton<IAmazonBedrockRuntime>(BedrockClientMock.Object));
+                services.Replace(ServiceDescriptor.Singleton<IWhatsAppClient>(WhatsAppClientMock.Object));
 
-                services.Configure<WolverineOptions>(opts => opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate);
+                services.Configure<WolverineOptions>(opts =>
+                    opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate);
+
                 services.Configure<StoreOptions>(opts => {
                     opts.AutoCreateSchemaObjects = AutoCreate.All;
                     opts.Schema.For<DocumentChunk>();
                 });
+
                 services.Configure<WhatsAppOptions>(opts => {
                     opts.AccessToken = "integration_test_access_token";
                     opts.BaseUrl = "https://dummy-whatsapp-api.com";
@@ -71,10 +76,6 @@ public class IntegrationAppFixture : IAsyncLifetime
 
     private void SetupMockResponses()
     {
-        var vector512 = new float[512]; vector512[0] = 0.1f;
-        EmbeddingMock.Setup(x => x.GenerateEmbeddingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(vector512);
-
         WhatsAppClientMock.Setup(x => x.SendMessageAsync(It.IsAny<string>(), It.IsAny<WhatsAppTextRequest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WhatsAppResponse("ok", [], []));
 
@@ -82,23 +83,37 @@ public class IntegrationAppFixture : IAsyncLifetime
             .ReturnsAsync((InvokeModelRequest request, CancellationToken ct) =>
             {
                 var requestJson = Encoding.UTF8.GetString(request.Body.ToArray());
+                string jsonResponse;
 
-                string aiTextToReturn;
-
-                if (requestJson.Contains("language detection module"))
+                if (requestJson.Contains("inputText") || requestJson.Contains("texts") || (request.ModelId?.Contains("embed") ?? false))
                 {
-                    aiTextToReturn = "es";
+                    var vector512 = new float[512];
+                    vector512[0] = 0.1f;
+                    var vectorJson = System.Text.Json.JsonSerializer.Serialize(vector512);
+
+                    jsonResponse = $$"""
+                    {
+                        "embedding": {{vectorJson}},
+                        "embeddings": [{{vectorJson}}]
+                    }
+                    """;
+                }
+                else if (requestJson.Contains("language detection module"))
+                {
+                    jsonResponse = $$"""
+                    {
+                        "content": [ { "text": "es" } ]
+                    }
+                    """;
                 }
                 else
                 {
-                    aiTextToReturn = "Mocked AI Response: Soy SamaBot y esto es un test E2E.";
+                    jsonResponse = $$"""
+                    {
+                        "content": [ { "text": "Mocked AI Response: Soy SamaBot y esto es un test E2E." } ]
+                    }
+                    """;
                 }
-
-                var jsonResponse = $$"""
-                {
-                    "content": [ { "text": "{{aiTextToReturn}}" } ]
-                }
-                """;
 
                 return new InvokeModelResponse
                 {

@@ -26,14 +26,6 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
         var secretInfo = "The secret access code for SamaBot is 998877.";
         CreateTestPdf(tempPdfPath, secretInfo);
 
-        var mockVector = new float[512];
-        mockVector[0] = 1.0f;
-
-        fixture.EmbeddingMock.Setup(x => x.GenerateEmbeddingAsync(
-                It.IsAny<string>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockVector);
-
         await fixture.Host.Scenario(s =>
         {
             s.Post.Json(new IngestPdfRequest(tempPdfPath)).ToUrl("/api/admin/ingest");
