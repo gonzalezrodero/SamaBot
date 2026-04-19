@@ -34,14 +34,25 @@ resource "aws_secretsmanager_secret_version" "app_connection_string_value" {
 
 data "aws_iam_policy_document" "ecs_task_execution_policy_extra" {
   statement {
+    effect = "Allow"
     actions = [
       "secretsmanager:GetSecretValue",
-      "kms:Decrypt"
+      "ssm:GetParameters",
+      "ssm:GetParameter"
     ]
     resources = [
       data.terraform_remote_state.database.outputs.db_password_secret_arn,
       aws_secretsmanager_secret.app_connection_string.arn,
-      "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter/chatbot/dev/whatsapp/*",
+      "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter/chatbot/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt"
+    ]
+    resources = [
       "*"
     ]
   }
@@ -53,6 +64,22 @@ resource "aws_iam_role_policy" "ecs_task_execution_policy_extra" {
   policy = data.aws_iam_policy_document.ecs_task_execution_policy_extra.json
 }
 
+resource "aws_iam_role_policy" "ecs_task_bedrock" {
+  name = "${var.project_name}-ecs-task-bedrock"
+
+  role = data.terraform_remote_state.bootstrap.outputs.ecs_task_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "bedrock:InvokeModel"
+        Resource = "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+      }
+    ]
+  })
+}
 
 # ==============================================================================
 # 3. ECS TASK DEFINITION
