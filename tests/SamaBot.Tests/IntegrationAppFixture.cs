@@ -98,38 +98,32 @@ public class IntegrationAppFixture : IAsyncLifetime
                         });
 
 
-                    // 2. NUCLEAR REMOVAL (Clear the slate for the standard DI Container)
-                    services.RemoveAll<IAmazonBedrockRuntime>();
-                    services.RemoveAll<IEmbeddingService>();
-                    services.RemoveAll<IChatService>();
-                    services.RemoveAll<ILanguageDetector>();
-                    services.RemoveAll<IWhatsAppClient>();
+                    // 2. NUCLEAR OVERRIDE
+                    services.Replace(ServiceDescriptor.Singleton<IAmazonBedrockRuntime>(BedrockClientMock.Object));
+                    services.Replace(ServiceDescriptor.Singleton<IEmbeddingService>(EmbeddingMock.Object));
+                    services.Replace(ServiceDescriptor.Singleton<IChatService>(ChatMock.Object));
+                    services.Replace(ServiceDescriptor.Singleton<ILanguageDetector>(LanguageDetectorMock.Object));
+                    services.Replace(ServiceDescriptor.Singleton<IWhatsAppClient>(WhatsAppClientMock.Object));
 
-                    // 3. INJECT MOCKS AS THE ONLY SOURCE OF TRUTH (Standard DI Container)
-                    services.AddSingleton(BedrockClientMock.Object);
-                    services.AddSingleton(EmbeddingMock.Object);
-                    services.AddSingleton(ChatMock.Object);
-                    services.AddSingleton(LanguageDetectorMock.Object);
-                    services.AddSingleton(WhatsAppClientMock.Object);
+                    // 3. BORRAR CLASES CONCRETAS: 
+                    services.RemoveAll<EmbeddingService>();
+                    services.RemoveAll<ChatService>();
+                    services.RemoveAll<LanguageDetector>();
 
                     // 4. WOLVERINE INTERNAL CONTAINER OVERRIDES
                     services.Configure<WolverineOptions>(opts =>
                     {
                         opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate;
 
-                        // Force Wolverine to drop real implementations
-                        opts.Services.RemoveAll<IAmazonBedrockRuntime>();
-                        opts.Services.RemoveAll<IEmbeddingService>();
-                        opts.Services.RemoveAll<IChatService>();
-                        opts.Services.RemoveAll<ILanguageDetector>();
-                        opts.Services.RemoveAll<IWhatsAppClient>();
+                        opts.Services.Replace(ServiceDescriptor.Singleton<IAmazonBedrockRuntime>(BedrockClientMock.Object));
+                        opts.Services.Replace(ServiceDescriptor.Singleton<IEmbeddingService>(EmbeddingMock.Object));
+                        opts.Services.Replace(ServiceDescriptor.Singleton<IChatService>(ChatMock.Object));
+                        opts.Services.Replace(ServiceDescriptor.Singleton<ILanguageDetector>(LanguageDetectorMock.Object));
+                        opts.Services.Replace(ServiceDescriptor.Singleton<IWhatsAppClient>(WhatsAppClientMock.Object));
 
-                        // Force Wolverine to use Mocks
-                        opts.Services.AddSingleton(BedrockClientMock.Object);
-                        opts.Services.AddSingleton(EmbeddingMock.Object);
-                        opts.Services.AddSingleton(ChatMock.Object);
-                        opts.Services.AddSingleton(LanguageDetectorMock.Object);
-                        opts.Services.AddSingleton(WhatsAppClientMock.Object);
+                        opts.Services.RemoveAll<EmbeddingService>();
+                        opts.Services.RemoveAll<ChatService>();
+                        opts.Services.RemoveAll<LanguageDetector>();
                     });
 
                     // 5. INFRASTRUCTURE SETTINGS
