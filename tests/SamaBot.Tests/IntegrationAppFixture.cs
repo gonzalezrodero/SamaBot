@@ -60,13 +60,29 @@ public class IntegrationAppFixture : IAsyncLifetime
 
                     // Mock the raw AWS Client to stop HTTP signing completely.
                     // Providing a dummy JSON body so JsonDocument.Parse doesn't fail if evaluated.
-                    var dummyBedrockResponse = new InvokeModelResponse
-                    {
-                        HttpStatusCode = System.Net.HttpStatusCode.OK,
-                        Body = new MemoryStream(Encoding.UTF8.GetBytes("{\"embedding\": [0]}"))
-                    };
-                    BedrockClientMock.Setup(x => x.InvokeModelAsync(It.IsAny<InvokeModelRequest>(), It.IsAny<CancellationToken>()))
-                        .ReturnsAsync(dummyBedrockResponse);
+                    BedrockClientMock
+                        .Setup(x => x.InvokeModelAsync(It.IsAny<InvokeModelRequest>(), It.IsAny<CancellationToken>()))
+                        .ReturnsAsync(() =>
+                        {
+                            // Creamos un JSON válido tanto para Embeddings como para Chat (Claude)
+                            var jsonResponse = """
+                            {
+                                "embedding": [0.1, 0.2, 0.3],
+                                "content": [ { "text": "Mocked AI Response from Bedrock SDK" } ]
+                            }
+                            """;
+
+                            var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonResponse))
+                            {
+                                Position = 0
+                            };
+
+                            return new InvokeModelResponse
+                            {
+                                HttpStatusCode = System.Net.HttpStatusCode.OK,
+                                Body = stream
+                            };
+                        });
 
                     var languageDetectorMock = new Mock<ILanguageDetector>();
                     languageDetectorMock.Setup(l => l.DetectLanguageAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
