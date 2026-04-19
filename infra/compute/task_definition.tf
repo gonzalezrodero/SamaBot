@@ -66,7 +66,8 @@ resource "aws_iam_role_policy" "ecs_task_execution_policy_extra" {
 
 resource "aws_iam_role_policy" "ecs_task_bedrock" {
   name = "${var.project_name}-ecs-task-bedrock"
-  role = data.terraform_remote_state.bootstrap.outputs.ecs_task_role_arn # Tu Task Role
+
+  role = data.terraform_remote_state.bootstrap.outputs.ecs_task_role_name
 
   policy = jsonencode({
     Version = "2012-10-17"
