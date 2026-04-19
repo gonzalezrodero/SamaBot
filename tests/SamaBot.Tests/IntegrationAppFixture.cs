@@ -64,11 +64,17 @@ public class IntegrationAppFixture : IAsyncLifetime
                         .Setup(x => x.InvokeModelAsync(It.IsAny<InvokeModelRequest>(), It.IsAny<CancellationToken>()))
                         .ReturnsAsync(() =>
                         {
-                            // Creamos un JSON válido tanto para Embeddings como para Chat (Claude)
-                            var jsonResponse = """
+                            // Create an array of 512 zeros to satisfy pgvector
+                            var mockVector = new float[512];
+                            mockVector[0] = 0.1f; // Just one non-zero value for semantic search tests to match on something
+
+                            // Serialize the array to a JSON string format: "[0.1, 0, 0, 0...]"
+                            var vectorJson = System.Text.Json.JsonSerializer.Serialize(mockVector);
+
+                            var jsonResponse = $$"""
                             {
-                                "embedding": [0.1, 0.2, 0.3],
-                                "content": [ { "text": "Mocked AI Response from Bedrock SDK" } ]
+                                "embedding": {{vectorJson}},
+                                "content": [ { "text": "Mocked AI Response: Soy SamaBot y esto es un test E2E." } ]
                             }
                             """;
 
