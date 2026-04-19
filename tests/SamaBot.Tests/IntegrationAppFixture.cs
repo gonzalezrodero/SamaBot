@@ -29,7 +29,7 @@ public class IntegrationAppFixture : IAsyncLifetime
 
     public IAlbaHost Host { get; private set; } = null!;
 
-    // Mocks expuestos para ser configurados en los tests si es necesario
+    // Mocks expuestos
     public Mock<IEmbeddingService> EmbeddingMock { get; } = new();
     public Mock<IChatService> ChatMock { get; } = new();
     public Mock<IAmazonBedrockRuntime> BedrockClientMock { get; } = new();
@@ -49,44 +49,31 @@ public class IntegrationAppFixture : IAsyncLifetime
 
         Host = await AlbaHost.For<Program>(builder =>
         {
-            builder.UseDefaultServiceProvider(options =>
-            {
-                options.ValidateScopes = false;
-                options.ValidateOnBuild = false;
-            });
+            builder.UseDefaultServiceProvider(options => options.ValidateScopes = false);
 
             builder.ConfigureServices(services =>
             {
-                SetupMocks();
+                SetupMockResponses();
 
-                var typesToMock = new[]
-                {
-                    typeof(IAmazonBedrockRuntime), typeof(IEmbeddingService), typeof(EmbeddingService),
-                    typeof(IChatService), typeof(ChatService), typeof(ILanguageDetector),
-                    typeof(LanguageDetector), typeof(IWhatsAppClient)
-                };
+                services.Replace(ServiceDescriptor.Singleton(BedrockClientMock.Object));
+                services.Replace(ServiceDescriptor.Singleton(EmbeddingMock.Object));
+                services.Replace(ServiceDescriptor.Singleton(ChatMock.Object));
+                services.Replace(ServiceDescriptor.Singleton(LanguageDetectorMock.Object));
+                services.Replace(ServiceDescriptor.Singleton(WhatsAppClientMock.Object));
 
-                foreach (var type in typesToMock) services.RemoveAll(type);
-
-                services.AddSingleton(BedrockClientMock.Object);
-                services.AddSingleton(EmbeddingMock.Object);
-                services.AddSingleton(ChatMock.Object);
-                services.AddSingleton(LanguageDetectorMock.Object);
-                services.AddSingleton(WhatsAppClientMock.Object);
+                services.RemoveAll<LanguageDetector>();
+                services.RemoveAll<ChatService>();
+                services.RemoveAll<EmbeddingService>();
 
                 services.Configure<WolverineOptions>(opts =>
-                {
-                    opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate;
-                });
+                    opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate);
 
-                services.Configure<StoreOptions>(opts =>
-                {
+                services.Configure<StoreOptions>(opts => {
                     opts.AutoCreateSchemaObjects = AutoCreate.All;
                     opts.Schema.For<DocumentChunk>();
                 });
 
-                services.Configure<WhatsAppOptions>(opts =>
-                {
+                services.Configure<WhatsAppOptions>(opts => {
                     opts.AccessToken = "integration_test_access_token";
                     opts.BaseUrl = "https://dummy-whatsapp-api.com";
                     opts.PhoneNumberId = "integration_test_phone_id";
@@ -97,44 +84,38 @@ public class IntegrationAppFixture : IAsyncLifetime
         });
     }
 
-    private void SetupMocks()
+    private void SetupMockResponses()
     {
-        EmbeddingMock.Setup(x => x.GenerateEmbeddingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateMockVector());
+        var vector512 = new float[512];
+        vector512[0] = 0.1f;
 
-        ChatMock.Setup(c => c.GetResponseAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        EmbeddingMock.Setup(x => x.GenerateEmbeddingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vector512);
+
+        ChatMock.Setup(x => x.GetResponseAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Mocked AI Response: Soy SamaBot y esto es un test E2E.");
 
-        LanguageDetectorMock.Setup(l => l.DetectLanguageAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        // 🚀 El fix para el error de "ca" vs "es"
+        LanguageDetectorMock.Setup(x => x.DetectLanguageAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("es");
 
-        WhatsAppClientMock.Setup(c => c.SendMessageAsync(It.IsAny<string>(), It.IsAny<WhatsAppTextRequest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new WhatsAppResponse("whatsapp", [], []));
+        WhatsAppClientMock.Setup(x => x.SendMessageAsync(It.IsAny<string>(), It.IsAny<WhatsAppTextRequest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WhatsAppResponse("ok", [], []));
 
-        // Mock nuclear de Bedrock: Devuelve un JSON válido con un vector de 512 dimensiones
         BedrockClientMock.Setup(x => x.InvokeModelAsync(It.IsAny<InvokeModelRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() =>
-            {
-                var vectorJson = System.Text.Json.JsonSerializer.Serialize(CreateMockVector());
-                var jsonResponse = $$"""
+            .ReturnsAsync(() => {
+                var json = $$"""
                 {
-                    "embedding": {{vectorJson}},
-                    "content": [ { "text": "Mocked AI Response: Soy SamaBot y esto es un test E2E." } ]
+                    "embedding": {{System.Text.Json.JsonSerializer.Serialize(vector512)}},
+                    "content": [ { "text": "Mock AI Response" } ]
                 }
                 """;
                 return new InvokeModelResponse
                 {
                     HttpStatusCode = System.Net.HttpStatusCode.OK,
-                    Body = new MemoryStream(Encoding.UTF8.GetBytes(jsonResponse)) { Position = 0 }
+                    Body = new MemoryStream(Encoding.UTF8.GetBytes(json)) { Position = 0 }
                 };
             });
-    }
-
-    private static float[] CreateMockVector()
-    {
-        var v = new float[512];
-        v[0] = 0.1f;
-        return v;
     }
 
     public async Task DisposeAsync()
@@ -145,4 +126,6 @@ public class IntegrationAppFixture : IAsyncLifetime
 }
 
 [CollectionDefinition("Integration")]
-public class IntegrationCollection : ICollectionFixture<IntegrationAppFixture> { }
+public class IntegrationCollection : ICollectionFixture<IntegrationAppFixture>
+{
+}
