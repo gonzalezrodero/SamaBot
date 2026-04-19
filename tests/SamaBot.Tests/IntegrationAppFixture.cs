@@ -120,10 +120,12 @@ public class IntegrationAppFixture : IAsyncLifetime
                         opts.Services.RemoveAll<IAmazonBedrockRuntime>();
                         opts.Services.RemoveAll<IEmbeddingService>();
                         opts.Services.RemoveAll<IChatService>();
+                        opts.Services.RemoveAll<ILanguageDetector>();
 
                         opts.Services.AddSingleton(BedrockClientMock.Object);
                         opts.Services.AddSingleton(EmbeddingMock.Object);
                         opts.Services.AddSingleton(ChatMock.Object);
+                        opts.Services.AddSingleton(languageDetectorMock.Object);
                     });
 
                     // 5. INFRASTRUCTURE SETTINGS
