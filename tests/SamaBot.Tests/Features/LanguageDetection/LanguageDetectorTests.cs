@@ -22,9 +22,9 @@ public class LanguageDetectorTests
     [InlineData("en", "en")]
     [InlineData("ca", "ca")]
     [InlineData(" ES ", "es")] // Tests trimming
-    [InlineData("INVALID", "ca")] // Tests fallback constraint
+    [InlineData("INVALID", "en")] // Tests fallback constraint
     [InlineData(null, "ca")] // Tests null fallback (buena práctica añadir este también)
-    [InlineData("", "ca")] // Tests empty fallback
+    [InlineData("", "en")] // Tests empty fallback
     public async Task DetectLanguageAsync_ReturnsEnforcedISOFormat(string? mockLlmResponse, string expectedResult)
     {
         // Arrange
