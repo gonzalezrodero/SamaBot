@@ -15,13 +15,15 @@ public interface IWhatsAppPayloadProcessor
 public class WhatsAppPayloadProcessor : IWhatsAppPayloadProcessor
 {
     private readonly WhatsAppOptions options;
+    private readonly ILogger<WhatsAppPayloadProcessor> logger;
 
-    public WhatsAppPayloadProcessor(IOptions<WhatsAppOptions> options)
+    public WhatsAppPayloadProcessor(IOptions<WhatsAppOptions> options, ILogger<WhatsAppPayloadProcessor> logger)
     {
         this.options = options.Value;
+        this.logger = logger;
 
-        // Removed explicit caller argument
         ArgumentException.ThrowIfNullOrWhiteSpace(this.options.AppSecret);
+        logger.LogDebug("WhatsAppPayloadProcessor initialized. AppSecret present: {HasSecret}", !string.IsNullOrEmpty(this.options.AppSecret));
     }
 
     public async Task<bool> IsSignatureValidAsync(HttpRequest request)
@@ -29,46 +31,76 @@ public class WhatsAppPayloadProcessor : IWhatsAppPayloadProcessor
         var signatureHeader = request.Headers["X-Hub-Signature-256"].FirstOrDefault();
         if (string.IsNullOrEmpty(signatureHeader) || !signatureHeader.StartsWith("sha256="))
         {
+            logger.LogInformation("Signature header missing or malformed.");
             return false;
         }
 
         var incomingSignature = signatureHeader["sha256=".Length..];
+        logger.LogDebug("Incoming signature prefix: {Prefix}", incomingSignature.Length > 8 ? incomingSignature[..8] : incomingSignature);
 
         var body = await ReadRequestBodyAsync(request);
-        var expectedSignature = ComputeSignature(body);
+        if (body == null)
+        {
+            logger.LogWarning("Request body could not be read for signature validation.");
+            return false;
+        }
 
-        return incomingSignature.Equals(expectedSignature, StringComparison.OrdinalIgnoreCase);
+        var expectedSignature = ComputeSignature(body);
+        logger.LogDebug("Computed signature prefix: {Prefix}", expectedSignature.Length > 8 ? expectedSignature[..8] : expectedSignature);
+
+        var valid = incomingSignature.Equals(expectedSignature, StringComparison.OrdinalIgnoreCase);
+        logger.LogInformation("Signature validation {Result}", valid ? "succeeded" : "failed");
+
+        return valid;
     }
 
     public async Task<ProcessWhatsAppMessage?> ExtractMessageAsync(HttpRequest request)
     {
         var body = await ReadRequestBodyAsync(request);
-        return ParseJsonToMessage(body);
+        logger.LogDebug("ExtractMessageAsync: body length {Length}", body?.Length ?? 0);
+
+        var message = ParseJsonToMessage(body);
+        if (message != null)
+        {
+            logger.LogInformation("Parsed message: Id={MessageId} From={From} BotNumberId={BotNumberId} TextLength={TextLength}",
+                message.MessageId, message.PhoneNumber, message.BotPhoneNumberId, message.Text?.Length ?? 0);
+        }
+        else
+        {
+            logger.LogInformation("No parsable WhatsApp message found in payload.");
+        }
+
+        return message;
     }
 
-    private static async Task<string> ReadRequestBodyAsync(HttpRequest request)
+    private async Task<string> ReadRequestBodyAsync(HttpRequest request)
     {
-        request.EnableBuffering();
+        try
+        {
+            request.EnableBuffering();
+            request.Body.Position = 0;
+            using var reader = new StreamReader(request.Body, Encoding.UTF8, leaveOpen: true);
+            var body = await reader.ReadToEndAsync();
+            request.Body.Position = 0;
 
-        request.Body.Position = 0;
-        using var reader = new StreamReader(request.Body, Encoding.UTF8, leaveOpen: true);
-        var body = await reader.ReadToEndAsync();
-
-        // Reset for downstream parsers
-        request.Body.Position = 0;
-
-        return body;
+            logger.LogDebug("ReadRequestBodyAsync: read {Bytes} bytes", Encoding.UTF8.GetByteCount(body));
+            return body;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to read request body.");
+            return string.Empty;
+        }
     }
 
     private string ComputeSignature(string payload)
     {
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(options.AppSecret));
         var hashBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
-
         return Convert.ToHexStringLower(hashBytes);
     }
 
-    private static ProcessWhatsAppMessage? ParseJsonToMessage(string body)
+    private ProcessWhatsAppMessage? ParseJsonToMessage(string body)
     {
         try
         {
@@ -102,9 +134,13 @@ public class WhatsAppPayloadProcessor : IWhatsAppPayloadProcessor
             var timestamp = DateTimeOffset.FromUnixTimeSeconds(long.Parse(timestampStr));
             return new ProcessWhatsAppMessage(messageId, botNumberId, fromNumber, messageText, timestamp, body);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            // Safely ignored: Invalid JSON payload
+            logger.LogWarning(ex, "Failed to parse JSON payload as WhatsApp message.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Unexpected error parsing WhatsApp payload.");
         }
 
         return null; // Not a standard incoming text message

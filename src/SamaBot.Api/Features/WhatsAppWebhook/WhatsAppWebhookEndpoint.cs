@@ -29,17 +29,30 @@ public class WhatsAppWebhookEndpoint
     public async Task<IResult> ReceiveMessage(
         HttpRequest request,
         IWhatsAppPayloadProcessor processor,
-        IMessageBus bus)
+        IMessageBus bus,
+        ILogger<WhatsAppWebhookEndpoint> logger)
     {
+        logger.LogInformation("Webhook received. RemoteIp={RemoteIp} Path={Path}", request.HttpContext.Connection.RemoteIpAddress, request.Path);
+
+        var signatureHeader = request.Headers["X-Hub-Signature-256"].FirstOrDefault();
+        logger.LogDebug("Signature header present: {HasHeader}", !string.IsNullOrEmpty(signatureHeader));
+
         if (!await processor.IsSignatureValidAsync(request))
         {
+            logger.LogWarning("Request unauthorized: invalid signature.");
             return Results.Unauthorized();
         }
 
         var message = await processor.ExtractMessageAsync(request);
         if (message != null)
         {
+            logger.LogInformation("Dispatching message to bus. MessageId={MessageId}", message.MessageId);
             await bus.InvokeAsync(message);
+            logger.LogInformation("Message dispatched. MessageId={MessageId}", message.MessageId);
+        }
+        else
+        {
+            logger.LogInformation("No message to dispatch after parsing.");
         }
 
         return Results.Ok();
