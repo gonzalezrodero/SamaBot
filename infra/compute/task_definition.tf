@@ -64,23 +64,6 @@ resource "aws_iam_role_policy" "ecs_task_execution_policy_extra" {
   policy = data.aws_iam_policy_document.ecs_task_execution_policy_extra.json
 }
 
-resource "aws_iam_role_policy" "ecs_task_bedrock" {
-  name = "${var.project_name}-ecs-task-bedrock"
-
-  role = data.terraform_remote_state.bootstrap.outputs.ecs_task_role_name
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = "bedrock:InvokeModel"
-        Resource = "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
-      }
-    ]
-  })
-}
-
 # ==============================================================================
 # 3. ECS TASK DEFINITION
 # ==============================================================================
@@ -93,7 +76,7 @@ resource "aws_ecs_task_definition" "backend" {
   memory                   = 512
 
   execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn      = data.terraform_remote_state.bootstrap.outputs.ecs_task_role_arn
+  task_role_arn      = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
     {

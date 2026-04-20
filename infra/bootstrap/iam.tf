@@ -45,7 +45,7 @@ resource "aws_iam_role_policy_attachment" "admin_attach" {
 # ==========================================
 resource "aws_iam_policy" "bedrock_cheap_models" {
   name        = "${var.project_name}-bedrock-cheap-access"
-  description = "Permite SOLO modelos baratos: Claude Haiku y Amazon Titan Lite"
+  description = "Allows ONLY cheap models: Claude Haiku and Amazon Titan Lite"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -57,7 +57,7 @@ resource "aws_iam_policy" "bedrock_cheap_models" {
           "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0",
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-text-lite-v1",
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-text-express-v1",
-          "arn:aws:bedrock:eu-west-1::foundation-model/amazon.titan-embed-text-v2:0"
+          "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-embed-text-v2:0"
         ]
       },
       {

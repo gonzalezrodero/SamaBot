@@ -1,35 +1,31 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Wolverine.Http;
+﻿using Wolverine.Http;
 
 namespace SamaBot.Api.Features.Knowledge;
-
-/// <summary>
-/// Request model for triggering PDF ingestion.
-/// </summary>
-public record IngestPdfRequest(string FilePath);
 
 public class IngestPdfEndpoint
 {
     [WolverinePost("/api/admin/ingest")]
     public async Task<IResult> Ingest(
-        [FromBody] IngestPdfRequest request,
+        IFormFile file,
         IPdfIngestionService ingestionService,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.FilePath))
+        if (file == null || file.Length == 0)
         {
-            return Results.BadRequest(new { Error = "FilePath is required." });
+            return Results.BadRequest(new { Error = "No file uploaded." });
+        }
+
+        if (file.ContentType != "application/pdf")
+        {
+            return Results.BadRequest(new { Error = "Only PDF files are supported." });
         }
 
         try
         {
-            await ingestionService.IngestPdfAsync(request.FilePath, ct);
+            using var stream = file.OpenReadStream();
+            await ingestionService.IngestPdfStreamAsync(stream, file.FileName, ct);
 
-            return Results.Ok(new { Message = $"Successfully ingested {request.FilePath} into the vector database." });
-        }
-        catch (FileNotFoundException ex)
-        {
-            return Results.NotFound(new { Error = ex.Message, Path = request.FilePath });
+            return Results.Ok(new { Message = $"Successfully ingested {file.FileName} into the vector database." });
         }
         catch (Exception ex)
         {
