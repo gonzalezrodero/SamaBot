@@ -1,4 +1,4 @@
-using SamaBot.Api.Features.Chat; // Asegúrate de tener el using de tu IChatService
+using SamaBot.Api.Features.Chat;
 
 namespace SamaBot.Api.Features.LanguageDetection;
 
@@ -7,7 +7,7 @@ public interface ILanguageDetector
     Task<string> DetectLanguageAsync(string text, CancellationToken cancellationToken = default);
 }
 
-public class LanguageDetector(IChatService chatService) : ILanguageDetector // 🚀 Inyectamos nuestro servicio
+public class LanguageDetector(IChatService chatService) : ILanguageDetector
 {
     private const string SystemPrompt = """
         You are a highly efficient language detection module for Club Bàsquet Samà.

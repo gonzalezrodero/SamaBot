@@ -2,10 +2,9 @@ using Alba;
 using AwesomeAssertions;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
-using Moq;
 using SamaBot.Api.Core.Events;
-using SamaBot.Api.Features.Knowledge;
 using SamaBot.Api.Features.WhatsAppWebhook;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using UglyToad.PdfPig.Core;
@@ -21,19 +20,36 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
     [Fact]
     public async Task FullRAGJourney_FromIngestionToAIResponse()
     {
-        // --- 1. Arrange: Data Ingestion ---
+        // --- 1. Arrange: Data Ingestion (MULTIPART UPLOAD) ---
         var tempPdfPath = Path.Combine(Path.GetTempPath(), $"test_knowledge_{Guid.NewGuid()}.pdf");
         var secretInfo = "The secret access code for SamaBot is 998877.";
         CreateTestPdf(tempPdfPath, secretInfo);
 
         await fixture.Host.Scenario(s =>
         {
-            s.Post.Json(new IngestPdfRequest(tempPdfPath)).ToUrl("/api/admin/ingest");
+            s.Post.Url("/api/admin/ingest");
+
+            var fileContent = new ByteArrayContent(File.ReadAllBytes(tempPdfPath));
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+
+            var multipart = new MultipartFormDataContent
+            {
+                { fileContent, "file", Path.GetFileName(tempPdfPath) }
+            };
+
+            var stream = multipart.ReadAsStream();
+            s.ConfigureHttpContext(context =>
+            {
+                context.Request.ContentType = multipart.Headers.ContentType?.ToString();
+                context.Request.ContentLength = stream.Length;
+                context.Request.Body = stream;
+            });
+
             s.StatusCodeShouldBeOk();
         });
 
         // --- 2. Arrange: Webhook Payload ---
-        var testPhoneNumber = $"34999000{Random.Shared.Next(100, 999)}"; // Randomize to avoid stream collisions in shared fixture
+        var testPhoneNumber = $"34999000{Random.Shared.Next(100, 999)}";
         var payload = $$"""
         {
           "object": "whatsapp_business_account",
@@ -63,17 +79,14 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
 
         streamEvents.Should().NotBeEmpty("The event stream should have been populated by the webhook.");
 
-        // 4.1. Webhook Phase
         var received = streamEvents.Select(e => e.Data).OfType<MessageReceived>().FirstOrDefault();
         received.Should().NotBeNull("Phase 1: MessageReceived event is missing.");
         received!.Text.Should().Be("What is the secret code?");
 
-        // 4.2. Language Detection Phase
         var analyzed = streamEvents.Select(e => e.Data).OfType<MessageAnalyzed>().FirstOrDefault();
         analyzed.Should().NotBeNull("Phase 2: MessageAnalyzed event is missing.");
-        analyzed!.LanguageCode.Should().Be("es", "Because the IntegrationAppFixture mocks the language detector to return 'es'.");
+        analyzed!.LanguageCode.Should().Be("es");
 
-        // 4.3. AI / RAG Phase
         var reply = streamEvents.Select(e => e.Data).OfType<ReplyGenerated>().FirstOrDefault();
         reply.Should().NotBeNull("Phase 3: ReplyGenerated event is missing.");
         reply!.ReplyText.Should().NotBeNullOrWhiteSpace();

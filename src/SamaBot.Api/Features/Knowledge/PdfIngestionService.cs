@@ -6,23 +6,16 @@ namespace SamaBot.Api.Features.Knowledge;
 
 public interface IPdfIngestionService
 {
-    Task IngestPdfAsync(string filePath, CancellationToken ct = default);
+    Task IngestPdfStreamAsync(Stream pdfStream, string fileName, CancellationToken ct = default);
 }
 
 public class PdfIngestionService(
     IKnowledgeBaseService knowledgeBaseService,
     ILogger<PdfIngestionService> logger) : IPdfIngestionService
 {
-    public async Task IngestPdfAsync(string filePath, CancellationToken ct = default)
+    public async Task IngestPdfStreamAsync(Stream pdfStream, string fileName, CancellationToken ct = default)
     {
-        if (!File.Exists(filePath))
-        {
-            logger.LogError("File not found at path: {FilePath}", filePath);
-            throw new FileNotFoundException("PDF file not found.", filePath);
-        }
-
-        var fileName = Path.GetFileName(filePath);
-        using var document = PdfDocument.Open(filePath);
+        using var document = PdfDocument.Open(pdfStream);
         var textBuilder = new StringBuilder();
 
         foreach (var page in document.GetPages())

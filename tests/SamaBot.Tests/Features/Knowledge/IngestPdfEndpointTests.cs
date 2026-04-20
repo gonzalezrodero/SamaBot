@@ -18,14 +18,16 @@ public class IngestPdfEndpointTests
     }
 
     [Fact]
-    public async Task Ingest_EmptyFilePath_ReturnsBadRequest()
+    public async Task Ingest_EmptyFile_ReturnsBadRequest()
     {
         // Arrange
-        var request = new IngestPdfRequest("");
+        var fileMock = mocker.GetMock<IFormFile>();
+        fileMock.Setup(f => f.Length).Returns(0); // Simulate empty file
+
         var service = mocker.GetMock<IPdfIngestionService>().Object;
 
         // Act
-        var result = await sut.Ingest(request, service, CancellationToken.None);
+        var result = await sut.Ingest(fileMock.Object, service, CancellationToken.None);
 
         // Assert
         result.Should().BeAssignableTo<IStatusCodeHttpResult>()
@@ -33,37 +35,41 @@ public class IngestPdfEndpointTests
     }
 
     [Fact]
-    public async Task Ingest_ServiceThrowsFileNotFound_ReturnsNotFound()
+    public async Task Ingest_InvalidContentType_ReturnsBadRequest()
     {
         // Arrange
-        var request = new IngestPdfRequest("missing.pdf");
-        var serviceMock = mocker.GetMock<IPdfIngestionService>();
+        var fileMock = mocker.GetMock<IFormFile>();
+        fileMock.Setup(f => f.Length).Returns(100);
+        fileMock.Setup(f => f.ContentType).Returns("image/png"); // Not a PDF
 
-        serviceMock
-            .Setup(x => x.IngestPdfAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new FileNotFoundException("File not found"));
+        var service = mocker.GetMock<IPdfIngestionService>().Object;
 
         // Act
-        var result = await sut.Ingest(request, serviceMock.Object, CancellationToken.None);
+        var result = await sut.Ingest(fileMock.Object, service, CancellationToken.None);
 
         // Assert
         result.Should().BeAssignableTo<IStatusCodeHttpResult>()
-              .Which.StatusCode.Should().Be(404);
+              .Which.StatusCode.Should().Be(400);
     }
 
     [Fact]
     public async Task Ingest_ServiceThrowsGenericException_ReturnsProblem()
     {
         // Arrange
-        var request = new IngestPdfRequest("error.pdf");
+        var fileMock = mocker.GetMock<IFormFile>();
+        fileMock.Setup(f => f.Length).Returns(100);
+        fileMock.Setup(f => f.ContentType).Returns("application/pdf");
+        fileMock.Setup(f => f.FileName).Returns("error.pdf");
+        fileMock.Setup(f => f.OpenReadStream()).Returns(new MemoryStream());
+
         var serviceMock = mocker.GetMock<IPdfIngestionService>();
 
         serviceMock
-            .Setup(x => x.IngestPdfAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new Exception("Random failure"));
+            .Setup(x => x.IngestPdfStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception("Random failure in Bedrock or DB"));
 
         // Act
-        var result = await sut.Ingest(request, serviceMock.Object, CancellationToken.None);
+        var result = await sut.Ingest(fileMock.Object, serviceMock.Object, CancellationToken.None);
 
         // Assert
         result.Should().BeAssignableTo<IStatusCodeHttpResult>()
