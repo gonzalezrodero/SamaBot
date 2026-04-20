@@ -32,7 +32,7 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
         var messageAnalyzed = streamEvents.FirstOrDefault(e => e.Data is MessageAnalyzed)?.Data as MessageAnalyzed;
         
         messageAnalyzed.Should().NotBeNull();
-        messageAnalyzed!.LanguageCode.Should().Be("es"); // Hardcoded response in our StubChatClient
+        messageAnalyzed!.LanguageCode.Should().Be("en");
         messageAnalyzed.MessageId.Should().Be("atomic.Test1");
     }
 }

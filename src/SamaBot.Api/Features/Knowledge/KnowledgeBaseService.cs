@@ -1,5 +1,6 @@
 ﻿using Marten;
 using SamaBot.Api.Core.Entities;
+using System.Collections.Concurrent;
 
 namespace SamaBot.Api.Features.Knowledge;
 
@@ -33,21 +34,29 @@ public class KnowledgeBaseService(
         var validChunks = contents.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
         if (validChunks.Count == 0) return;
 
-        var embeddingTasks = validChunks.Select(chunk => embeddingService.GenerateEmbeddingAsync(chunk, ct));
-        var embeddings = await Task.WhenAll(embeddingTasks);
+        var chunksToStore = new ConcurrentBag<DocumentChunk>();
 
-        for (int i = 0; i < validChunks.Count; i++)
+        var options = new ParallelOptions
         {
+            MaxDegreeOfParallelism = 5,
+            CancellationToken = ct
+        };
+
+        await Parallel.ForEachAsync(validChunks, options, async (chunkText, token) =>
+        {
+            var embedding = await embeddingService.GenerateEmbeddingAsync(chunkText, token);
+
             var chunk = new DocumentChunk(
                 Guid.NewGuid(),
-                validChunks[i],
+                chunkText,
                 source,
-                embeddings[i],
+                embedding,
                 DateTimeOffset.UtcNow);
 
-            session.Store(chunk);
-        }
+            chunksToStore.Add(chunk);
+        });
 
+        session.Store(chunksToStore.ToArray());
         await session.SaveChangesAsync(ct);
     }
 }

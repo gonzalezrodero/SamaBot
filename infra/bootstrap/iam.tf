@@ -45,7 +45,7 @@ resource "aws_iam_role_policy_attachment" "admin_attach" {
 # ==========================================
 resource "aws_iam_policy" "bedrock_cheap_models" {
   name        = "${var.project_name}-bedrock-cheap-access"
-  description = "Allows ONLY cheap models: Claude Haiku and Amazon Titan Lite"
+  description = "Allows Claude Haiku and Titan models with marketplace validation"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -61,9 +61,16 @@ resource "aws_iam_policy" "bedrock_cheap_models" {
         ]
       },
       {
-        # Permiso necesario para listar modelos (opcional, pero ayuda a los SDKs)
         Effect   = "Allow"
         Action   = "bedrock:ListFoundationModels"
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "aws-marketplace:ViewSubscriptions",
+          "aws-marketplace:Subscribe"
+        ]
         Resource = "*"
       }
     ]

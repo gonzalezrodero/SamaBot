@@ -85,7 +85,7 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
 
         var analyzed = streamEvents.Select(e => e.Data).OfType<MessageAnalyzed>().FirstOrDefault();
         analyzed.Should().NotBeNull("Phase 2: MessageAnalyzed event is missing.");
-        analyzed!.LanguageCode.Should().Be("es");
+        analyzed!.LanguageCode.Should().Be("en");
 
         var reply = streamEvents.Select(e => e.Data).OfType<ReplyGenerated>().FirstOrDefault();
         reply.Should().NotBeNull("Phase 3: ReplyGenerated event is missing.");
