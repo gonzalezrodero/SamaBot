@@ -66,12 +66,12 @@ resource "aws_iam_policy" "bedrock_cheap_models" {
         Resource = "*"
       },
       {
-        Effect   = "Allow"
-        Action   = [
+        Effect = "Allow"
+        Action = [
           "aws-marketplace:ViewSubscriptions",
           "aws-marketplace:Subscribe"
         ]
-        Resource = "*" 
+        Resource = "*"
       }
     ]
   })
