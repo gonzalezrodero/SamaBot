@@ -84,7 +84,7 @@ jobs:
   apply:
     name: "Terraform Apply"
     needs: build-and-plan
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') && github.event_name != 'pull_request'    
     runs-on: ubuntu-latest
     environment: development
     
