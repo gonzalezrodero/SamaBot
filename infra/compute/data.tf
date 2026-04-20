@@ -20,7 +20,7 @@ data "terraform_remote_state" "database" {
 
 # Fetch bootstrap outputs (where we created the ECS Task Role for Bedrock)
 data "terraform_remote_state" "bootstrap" {
-  backend = "s3" # O el backend que estés usando
+  backend = "s3"
   config = {
     bucket = var.terraform_state_bucket
     key    = "bootstrap/terraform.tfstate"
