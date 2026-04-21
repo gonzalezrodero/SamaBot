@@ -12,7 +12,7 @@ locals {
   db_creds = jsondecode(data.aws_secretsmanager_secret_version.db_creds.secret_string)
 
   # Assemble the full connection string using RDS endpoint, fixed port/db, and secret credentials
-  marten_conn_string = "Host=${data.terraform_remote_state.database.outputs.db_endpoint};Port=5432;Database=${var.project_name};Username=${local.db_creds.username};Password=${local.db_creds.password};"
+  marten_conn_string = "Host=${data.terraform_remote_state.database.outputs.db_endpoint};Port=5432;Database=${var.project_name};Username=${local.db_creds.username};Password=${local.db_creds.password};SSL Mode=Require;Trust Server Certificate=true;"
 }
 
 # Create a dedicated Secret for the application connection string

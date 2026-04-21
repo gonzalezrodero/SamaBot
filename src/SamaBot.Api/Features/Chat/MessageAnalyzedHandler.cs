@@ -31,7 +31,7 @@ public class MessageAnalyzedHandler
             IChatService chatService,
             CancellationToken ct)
     {
-        var relevantChunks = await knowledgeBase.SearchAsync(@event.OriginalText, limit: 6, ct: ct);
+        var relevantChunks = await knowledgeBase.SearchAsync(@event.OriginalText, limit: 10, ct: ct);
 
         var contextBuilder = new StringBuilder();
         foreach (var chunk in relevantChunks)
