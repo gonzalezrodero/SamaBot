@@ -37,7 +37,9 @@ public class ChatServiceTests
         // Arrange
         var expectedResponseText = "¡Hola! Soy SamaBot y estoy listo para ayudar.";
         var systemPrompt = "Eres un asistente.";
-        var userPrompt = "Hola";
+
+        // Wrap the user prompt in the new ChatMessage list format
+        var history = new List<ChatMessage> { new("user", "Hola") };
 
         var jsonResponse = $$"""
         {
@@ -61,7 +63,7 @@ public class ChatServiceTests
             .ReturnsAsync(invokeResponse);
 
         // Act
-        var result = await _sut.GetResponseAsync(systemPrompt, userPrompt, CancellationToken.None);
+        var result = await _sut.GetResponseAsync(systemPrompt, history, CancellationToken.None);
 
         // Assert
         result.Should().Be(expectedResponseText, "El servicio debería parsear correctamente el campo 'text' del JSON devuelto por Claude 3.");
@@ -76,8 +78,10 @@ public class ChatServiceTests
             .Setup(c => c.InvokeModelAsync(It.IsAny<InvokeModelRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new InvokeModelResponse { Body = responseStream });
 
+        var history = new List<ChatMessage> { new("user", "User") };
+
         // Act
-        await _sut.GetResponseAsync("System", "User", CancellationToken.None);
+        await _sut.GetResponseAsync("System", history, CancellationToken.None);
 
         // Assert
         _mocker.GetMock<IAmazonBedrockRuntime>()

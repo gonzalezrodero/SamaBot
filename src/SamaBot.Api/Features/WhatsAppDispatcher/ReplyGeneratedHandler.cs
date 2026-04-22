@@ -26,7 +26,7 @@ public class ReplyGeneratedHandler
 
         var request = new WhatsAppTextRequest(
             To: @event.PhoneNumber,
-            Text: new WhatsAppMessageBody(@event.ReplyText)
+            Text: new WhatsAppMessageBody(@event.Text)
         );
 
         var botId = options.PhoneNumberId;

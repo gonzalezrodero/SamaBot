@@ -1,7 +1,8 @@
-﻿using Amazon.BedrockRuntime; // <-- Add AWS SDK using
+﻿using Amazon.BedrockRuntime.Model;
 using JasperFx;
 using SamaBot.Api;
 using Wolverine;
+using Wolverine.ErrorHandling;
 using Wolverine.Http;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,6 +24,13 @@ builder.Services.AddFeatures(builder.Configuration);
 builder.Host.UseWolverine(opts =>
 {
     opts.Policies.AutoApplyTransactions();
+    opts.Policies.OnException<ThrottlingException>()
+        .RetryWithCooldown(
+            TimeSpan.FromSeconds(3),
+            TimeSpan.FromSeconds(15),
+            TimeSpan.FromSeconds(30),
+            TimeSpan.FromMinutes(1)
+        );
 });
 
 builder.Services.AddHealthChecks();
