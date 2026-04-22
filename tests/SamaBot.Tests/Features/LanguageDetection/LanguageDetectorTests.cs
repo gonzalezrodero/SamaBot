@@ -31,7 +31,7 @@ public class LanguageDetectorTests
         _mocker.GetMock<IChatService>()
             .Setup(c => c.GetResponseAsync(
                 It.IsAny<string>(),
-                It.IsAny<string>(),
+                It.IsAny<List<ChatMessage>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockLlmResponse!);
 

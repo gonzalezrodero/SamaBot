@@ -89,7 +89,7 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
 
         var reply = streamEvents.Select(e => e.Data).OfType<ReplyGenerated>().FirstOrDefault();
         reply.Should().NotBeNull("Phase 3: ReplyGenerated event is missing.");
-        reply!.ReplyText.Should().NotBeNullOrWhiteSpace();
+        reply!.Text.Should().NotBeNullOrWhiteSpace();
 
         // Cleanup
         if (File.Exists(tempPdfPath)) File.Delete(tempPdfPath);

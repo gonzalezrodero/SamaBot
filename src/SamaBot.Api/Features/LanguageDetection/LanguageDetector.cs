@@ -28,7 +28,7 @@ public class LanguageDetector(IChatService chatService) : ILanguageDetector
 
     public async Task<string> DetectLanguageAsync(string text, CancellationToken cancellationToken = default)
     {
-        var responseText = await chatService.GetResponseAsync(SystemPrompt, text, cancellationToken);
+        var responseText = await chatService.GetResponseAsync(SystemPrompt, [new ChatMessage("user", text)], cancellationToken);
 
         var returnedCode = responseText?.Trim().ToLowerInvariant() ?? "ca";
 

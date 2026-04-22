@@ -41,7 +41,8 @@ public class MessageAnalyzedHandler
 
         var systemMessage = string.Format(SystemPromptTemplate, @event.LanguageCode, contextBuilder);
 
-        var replyText = await chatService.GetResponseAsync(systemMessage, @event.OriginalText, ct);
+        var chatHistory = await ExtractChatHistory(@event.PhoneNumber, session, ct);
+        var replyText = await chatService.GetResponseAsync(systemMessage, chatHistory, ct);
 
         if (string.IsNullOrWhiteSpace(replyText))
             replyText = "I'm sorry, I couldn't process that request.";
@@ -50,5 +51,18 @@ public class MessageAnalyzedHandler
         session.Events.Append(@event.PhoneNumber, replyEvent);
 
         return replyEvent;
+    }
+
+    private static async Task<List<ChatMessage>> ExtractChatHistory(string phoneNumber, IDocumentSession session, CancellationToken ct)
+    {
+        var streamEvents = await session.Events.FetchStreamAsync(phoneNumber, token: ct);
+
+        return [.. streamEvents.Select(evt => evt.Data switch
+        {
+            MessageReceived userMsg => new ChatMessage("user", userMsg.Text),
+            ReplyGenerated botReply => new ChatMessage("assistant", botReply.Text),
+            _ => null 
+        })
+        .OfType<ChatMessage>()];
     }
 }

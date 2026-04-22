@@ -1,20 +1,27 @@
 ﻿using Amazon.BedrockRuntime;
 using Amazon.BedrockRuntime.Model;
 using Microsoft.Extensions.Options;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace SamaBot.Api.Features.Chat;
 
 public interface IChatService
 {
-    Task<string> GetResponseAsync(string systemPrompt, string userPrompt, CancellationToken ct);
+    Task<string> GetResponseAsync(string systemPrompt, List<ChatMessage> history, CancellationToken ct);
 }
 
 public class ChatService(IAmazonBedrockRuntime client, IOptions<BedrockSettings> settings) : IChatService
 {
     private readonly BedrockSettings settings = settings.Value;
 
-    public async Task<string> GetResponseAsync(string systemPrompt, string userPrompt, CancellationToken ct)
+    private static readonly JsonSerializerOptions jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
+    public async Task<string> GetResponseAsync(string systemPrompt, List<ChatMessage> history, CancellationToken ct)
     {
         var payload = new
         {
@@ -22,10 +29,7 @@ public class ChatService(IAmazonBedrockRuntime client, IOptions<BedrockSettings>
             max_tokens = settings.MaxTokens,
             temperature = settings.Temperature,
             system = systemPrompt,
-            messages = new[]
-            {
-                new { role = "user", content = userPrompt }
-            }
+            messages = history
         };
 
         var request = new InvokeModelRequest
@@ -33,7 +37,7 @@ public class ChatService(IAmazonBedrockRuntime client, IOptions<BedrockSettings>
             ModelId = settings.ModelId,
             ContentType = "application/json",
             Accept = "application/json",
-            Body = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(payload))
+            Body = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(payload, jsonOptions))
         };
 
         var response = await client.InvokeModelAsync(request, ct);
@@ -48,3 +52,5 @@ public class ChatService(IAmazonBedrockRuntime client, IOptions<BedrockSettings>
             .GetString() ?? string.Empty;
     }
 }
+
+public record ChatMessage(string Role, string Content);
