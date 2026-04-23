@@ -1,10 +1,12 @@
 ﻿using AwesomeAssertions;
+using Marten;
 using Microsoft.AspNetCore.Http;
 using Moq;
 using Moq.AutoMock;
 using SamaBot.Api.Features.Knowledge;
 using SamaBot.Api.Features.Knowledge.Extractors;
 using SamaBot.Api.Features.Knowledge.Services;
+using SamaBot.Api.Features.Tenancy;
 
 namespace SamaBot.Tests.Features.Knowledge;
 
@@ -12,11 +14,20 @@ public class IngestEndpointTests
 {
     private readonly AutoMocker mocker;
     private readonly IngestEndpoint sut;
+    private readonly Mock<IDocumentSession> sessionMock;
 
     public IngestEndpointTests()
     {
         mocker = new AutoMocker();
         sut = mocker.CreateInstance<IngestEndpoint>();
+
+        sessionMock = mocker.GetMock<IDocumentSession>();
+
+        sessionMock.Setup(s => s.LoadAsync<TenantProfile>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                   .ReturnsAsync((string id, CancellationToken ct) =>
+                       id == "TestTenant" || id == "ClubSama-123"
+                       ? new TenantProfile { Id = id }
+                       : null);
     }
 
     [Fact]
@@ -30,7 +41,25 @@ public class IngestEndpointTests
         var service = mocker.GetMock<IKnowledgeIngestionService>().Object;
 
         // Act
-        var result = await sut.Ingest("TestTenant", fileMock.Object, extractors, service, CancellationToken.None);
+        var result = await sut.Ingest("TestTenant", fileMock.Object, sessionMock.Object, extractors, service, CancellationToken.None);
+
+        // Assert
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>()
+              .Which.StatusCode.Should().Be(400);
+    }
+
+    [Fact]
+    public async Task Ingest_UnregisteredTenant_ReturnsBadRequest()
+    {
+        // Arrange
+        var fileMock = mocker.GetMock<IFormFile>();
+        fileMock.Setup(f => f.Length).Returns(100);
+
+        var extractors = new List<IDocumentExtractor>();
+        var service = mocker.GetMock<IKnowledgeIngestionService>().Object;
+
+        // Act
+        var result = await sut.Ingest("FakeTenant", fileMock.Object, sessionMock.Object, extractors, service, CancellationToken.None);
 
         // Assert
         result.Should().BeAssignableTo<IStatusCodeHttpResult>()
@@ -52,7 +81,7 @@ public class IngestEndpointTests
         var service = mocker.GetMock<IKnowledgeIngestionService>().Object;
 
         // Act
-        var result = await sut.Ingest("TestTenant", fileMock.Object, extractors, service, CancellationToken.None);
+        var result = await sut.Ingest("TestTenant", fileMock.Object, sessionMock.Object, extractors, service, CancellationToken.None);
 
         // Assert
         result.Should().BeAssignableTo<IStatusCodeHttpResult>()
@@ -76,7 +105,7 @@ public class IngestEndpointTests
         var service = mocker.GetMock<IKnowledgeIngestionService>().Object;
 
         // Act
-        var result = await sut.Ingest("TestTenant", fileMock.Object, extractors, service, CancellationToken.None);
+        var result = await sut.Ingest("TestTenant", fileMock.Object, sessionMock.Object, extractors, service, CancellationToken.None);
 
         // Assert
         result.Should().BeAssignableTo<IStatusCodeHttpResult>()
@@ -104,7 +133,7 @@ public class IngestEndpointTests
             .ThrowsAsync(new Exception("Random failure in DB"));
 
         // Act
-        var result = await sut.Ingest("TestTenant", fileMock.Object, extractors, serviceMock.Object, CancellationToken.None);
+        var result = await sut.Ingest("TestTenant", fileMock.Object, sessionMock.Object, extractors, serviceMock.Object, CancellationToken.None);
 
         // Assert
         result.Should().BeAssignableTo<IStatusCodeHttpResult>()
@@ -132,7 +161,7 @@ public class IngestEndpointTests
         var serviceMock = mocker.GetMock<IKnowledgeIngestionService>();
 
         // Act
-        var result = await sut.Ingest(tenantId, fileMock.Object, extractors, serviceMock.Object, CancellationToken.None);
+        var result = await sut.Ingest(tenantId, fileMock.Object, sessionMock.Object, extractors, serviceMock.Object, CancellationToken.None);
 
         // Assert
         result.Should().BeAssignableTo<IStatusCodeHttpResult>()

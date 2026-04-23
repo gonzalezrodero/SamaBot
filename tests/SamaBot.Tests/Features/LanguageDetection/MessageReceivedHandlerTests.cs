@@ -14,19 +14,23 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
     {
         // Arrange
         var testPhone = "34111222333";
+        var botPhone = "123";
+        var tenantId = "club-sama";
+
         var incomingEvent = new MessageReceived(
             MessageId: "atomic.Test1",
-            BotPhoneNumberId: "123",
             PhoneNumber: testPhone,
             Text: "Hola amics",
+            TenantId: tenantId,      
+            BotPhoneNumberId: botPhone,
             ReceivedAt: DateTimeOffset.UtcNow
         );
 
-        // Act: Directly invoke the message bypassing HTTP (Atomic Component Test)
+        // Act
         await fixture.Host.InvokeMessageAndWaitAsync(incomingEvent);
 
-        // Assert: Verify only the outcome of this specific handler
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession("123");
+        // Assert
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantId);
         var streamEvents = await session.Events.FetchStreamAsync(testPhone);
 
         var messageAnalyzed = streamEvents.FirstOrDefault(e => e.Data is MessageAnalyzed)?.Data as MessageAnalyzed;
@@ -34,5 +38,6 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
         messageAnalyzed.Should().NotBeNull();
         messageAnalyzed!.LanguageCode.Should().Be("en");
         messageAnalyzed.MessageId.Should().Be("atomic.Test1");
+        messageAnalyzed.TenantId.Should().Be(tenantId);
     }
 }

@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Moq;
 using SamaBot.Api.Common.Configuration;
 using SamaBot.Api.Core.Entities;
+using SamaBot.Api.Features.Tenancy;
 using SamaBot.Api.Features.WhatsAppDispatcher;
 using SamaBot.Api.Features.WhatsAppWebhook;
 using System.Text;
@@ -27,7 +28,6 @@ public class IntegrationAppFixture : IAsyncLifetime
 
     public IAlbaHost Host { get; private set; } = null!;
 
-    // 🚀 TU IDEA: Solo mockeamos las fronteras externas. Ni ChatService ni LanguageDetector.
     public Mock<IAmazonBedrockRuntime> BedrockClientMock { get; } = new();
     public Mock<IWhatsAppClient> WhatsAppClientMock { get; } = new();
 
@@ -50,17 +50,18 @@ public class IntegrationAppFixture : IAsyncLifetime
             {
                 SetupMockResponses();
 
-                // 🚀 EL FIX CRÍTICO: Poner el tipo explícito <IAmazonBedrockRuntime>
-                // Esto garantiza que sobreescribimos el cliente real y evitamos que vaya a AWS.
-                services.Replace(ServiceDescriptor.Singleton<IAmazonBedrockRuntime>(BedrockClientMock.Object));
-                services.Replace(ServiceDescriptor.Singleton<IWhatsAppClient>(WhatsAppClientMock.Object));
+                services.Replace(ServiceDescriptor.Singleton(BedrockClientMock.Object));
+                services.Replace(ServiceDescriptor.Singleton(WhatsAppClientMock.Object));
 
                 services.Configure<WolverineOptions>(opts =>
                     opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate);
 
                 services.Configure<StoreOptions>(opts => {
                     opts.AutoCreateSchemaObjects = AutoCreate.All;
-                    opts.Schema.For<DocumentChunk>();
+
+                    opts.Schema.For<DocumentChunk>().MultiTenanted();
+                    opts.Schema.For<ProcessedMessage>().MultiTenanted();
+                    opts.Schema.For<TenantProfile>().SingleTenanted();
                 });
 
                 services.Configure<WhatsAppOptions>(opts => {
@@ -108,9 +109,13 @@ public class IntegrationAppFixture : IAsyncLifetime
                 }
                 else
                 {
+                    var responseText = requestJson.Contains("secret")
+                        ? "Mocked AI Response: The secret access code is 998877."
+                        : "Mocked AI Response: Soy SamaBot y esto es un test E2E.";
+
                     jsonResponse = $$"""
                     {
-                        "content": [ { "text": "Mocked AI Response: Soy SamaBot y esto es un test E2E." } ]
+                        "content": [ { "text": "{{responseText}}" } ]
                     }
                     """;
                 }

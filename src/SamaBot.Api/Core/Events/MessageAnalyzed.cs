@@ -5,4 +5,5 @@ public record MessageAnalyzed(
     string BotPhoneNumberId,
     string PhoneNumber,
     string LanguageCode,
-    string OriginalText);
+    string OriginalText,
+    string TenantId);
