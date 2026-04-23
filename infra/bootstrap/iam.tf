@@ -43,6 +43,8 @@ resource "aws_iam_role_policy_attachment" "admin_attach" {
 # ==========================================
 # 3. BEDROCK "CHEAP MODELS ONLY" POLICY
 # ==========================================
+data "aws_caller_identity" "current" {}
+
 resource "aws_iam_policy" "bedrock_cheap_models" {
   name        = "${var.project_name}-bedrock-cheap-access"
   description = "Allows Claude Haiku and Titan models with marketplace validation"
@@ -55,7 +57,7 @@ resource "aws_iam_policy" "bedrock_cheap_models" {
         Action = "bedrock:InvokeModel"
         Resource = [
           "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
-          "arn:aws:bedrock:${var.aws_region}:${var.aws_account_id}:inference-profile/*",
+          "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/*",
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-text-lite-v1",
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-text-express-v1",
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-embed-text-v2:0"
