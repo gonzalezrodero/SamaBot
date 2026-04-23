@@ -9,6 +9,7 @@ variable "project_name" {
 }
 
 variable "aws_account_id" {
+  type    = string
   default = "543704476214"
 }
 

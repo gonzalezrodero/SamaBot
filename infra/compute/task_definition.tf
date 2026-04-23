@@ -97,7 +97,7 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "ASPNETCORE_ENVIRONMENT", value = var.app_environment },
         { name = "WhatsApp__BaseUrl", value = "https://graph.facebook.com/v19.0/" },
         { name = "BedrockSettings__Region", value = var.aws_region },
-        { name = "BedrockSettings__ModelId", value = "anthropic.claude-haiku-4-5-20251001-v1:0" }
+        { name = "BedrockSettings__ModelId", value = "eu.anthropic.claude-haiku-4-5-20251001-v1:0" }
       ]
 
       # Appended WhatsApp SSM parameters to the secrets array
