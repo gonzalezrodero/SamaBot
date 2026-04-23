@@ -31,9 +31,8 @@ public static class MessageAnalyzedHandler
                 IChatService chatService,
                 CancellationToken ct)
     {
-        using var session = store.LightweightSession(@event.BotPhoneNumberId);
-
-        var relevantChunks = await knowledgeBase.SearchAsync(@event.BotPhoneNumberId, @event.OriginalText, limit: 10, ct: ct);
+        using var session = store.LightweightSession(@event.TenantId);
+        var relevantChunks = await knowledgeBase.SearchAsync(@event.TenantId, @event.OriginalText, limit: 10, ct: ct);
 
         var contextBuilder = new StringBuilder();
         foreach (var chunk in relevantChunks)
@@ -52,7 +51,12 @@ public static class MessageAnalyzedHandler
             replyText = "I'm sorry, I couldn't process that request.";
 
         // Propagate both the Tenant ID and the User Phone
-        var replyEvent = new ReplyGenerated(@event.MessageId, @event.BotPhoneNumberId, @event.PhoneNumber, replyText);
+        var replyEvent = new ReplyGenerated(
+                    @event.MessageId,
+                    @event.BotPhoneNumberId,
+                    @event.PhoneNumber,
+                    replyText,
+                    @event.TenantId);
 
         // Append the event to the user's stream and save
         session.Events.Append(@event.PhoneNumber, replyEvent);

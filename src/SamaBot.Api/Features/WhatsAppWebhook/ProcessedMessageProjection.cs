@@ -8,11 +8,13 @@ public class ProcessedMessageProjection : EventProjection
 {
     public void Project(MessageReceived @event, IDocumentOperations ops)
     {
-        // Store the ProcessedMessage document to ensure global idempotency.
         ops.Store(new ProcessedMessage
         {
             Id = @event.MessageId,
-            ProcessedAt = @event.ReceivedAt
+            ProcessedAt = @event.ReceivedAt,
+            TenantId = @event.TenantId,
+            BotPhoneNumberId = @event.BotPhoneNumberId,
+            PhoneNumber = @event.PhoneNumber
         });
     }
 }

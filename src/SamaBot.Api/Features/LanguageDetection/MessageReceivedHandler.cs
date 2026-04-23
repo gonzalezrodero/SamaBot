@@ -18,12 +18,13 @@ public static class MessageReceivedHandler
             BotPhoneNumberId: @event.BotPhoneNumberId,
             PhoneNumber: @event.PhoneNumber,
             LanguageCode: languageCode,
-            OriginalText: @event.Text
+            OriginalText: @event.Text,
+            TenantId: @event.TenantId
         );
 
-        using var session = store.LightweightSession(@event.BotPhoneNumberId);
-        session.Events.Append(@event.PhoneNumber, analyzedEvent);
+        using var session = store.LightweightSession(@event.TenantId);
 
+        session.Events.Append(@event.PhoneNumber, analyzedEvent);
         await session.SaveChangesAsync(cancellationToken);
 
         return analyzedEvent;

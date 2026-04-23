@@ -12,6 +12,7 @@ using SamaBot.Api.Features.Chat;
 using SamaBot.Api.Features.Knowledge;
 using SamaBot.Api.Features.Knowledge.Services;
 using SamaBot.Api.Features.LanguageDetection;
+using SamaBot.Api.Features.Tenancy;
 using SamaBot.Api.Features.WhatsAppDispatcher;
 using SamaBot.Api.Features.WhatsAppWebhook;
 using Wolverine.Marten;
@@ -44,14 +45,17 @@ public static class Config
         services.AddMarten(opts =>
         {
             opts.Connection(connectionString);
+
             opts.Events.StreamIdentity = StreamIdentity.AsString;
             opts.Events.TenancyStyle = TenancyStyle.Conjoined;
 
-            opts.Policies.AllDocumentsAreMultiTenanted();
-
             opts.Storage.Add(new HnswIndexCustomizer());
+
             opts.Projections.Add<ProcessedMessageProjection>(ProjectionLifecycle.Inline);
-            opts.Schema.For<DocumentChunk>();
+
+            opts.Schema.For<TenantProfile>().SingleTenanted();
+            opts.Schema.For<ProcessedMessage>().MultiTenanted();
+            opts.Schema.For<DocumentChunk>().MultiTenanted();
         })
         .ApplyAllDatabaseChangesOnStartup()
         .UseNpgsqlDataSource()

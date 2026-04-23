@@ -15,50 +15,51 @@ public class MessageAnalyzedHandlerTests(IntegrationAppFixture fixture)
     public async Task GivenAnalyzedMessage_WhenHandlerRuns_ThenItGeneratesReplyAndAppendsToStream()
     {
         // Arrange
-        var botPhone = "34111222333"; // TENANT ID
-        var userPhone = "34888777666"; // STREAM ID
+        var tenantId = "club-sama";
+        var botPhone = "34111222333";
+        var userPhone = "34888777666";
 
         var incomingEvent = new MessageAnalyzed(
             MessageId: "atomic.Chat1",
             BotPhoneNumberId: botPhone,
             PhoneNumber: userPhone,
             LanguageCode: "ca",
-            OriginalText: "Quina és la contrasenya?"
+            OriginalText: "Quina és la contrasenya?",
+            TenantId: tenantId
         );
 
-        // Act: Directly invoke the message bypassing HTTP and upstream handlers
+        // Act
         await fixture.Host.InvokeMessageAndWaitAsync(incomingEvent);
 
-        // Assert: Verify the outcome of the Chat/RAG handler
-        // 🚀 ABRIMOS LA SESIÓN DEL TENANT (botPhone) PARA LEER EL STREAM DEL USUARIO (userPhone)
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(botPhone);
+        // Assert
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantId);
         var streamEvents = await session.Events.FetchStreamAsync(userPhone);
 
         var replyGenerated = streamEvents.FirstOrDefault(e => e.Data is ReplyGenerated)?.Data as ReplyGenerated;
 
         replyGenerated.Should().NotBeNull("The handler should have appended a ReplyGenerated event to the stream.");
 
-        // Asserting the mock value configured in IntegrationAppFixture
         replyGenerated!.Text.Should().Be("Mocked AI Response: Soy SamaBot y esto es un test E2E.");
         replyGenerated.MessageId.Should().Be("atomic.Chat1");
-        replyGenerated.BotPhoneNumberId.Should().Be(botPhone); // Verificamos que el BotId se propagó
-        replyGenerated.PhoneNumber.Should().Be(userPhone);     // Verificamos que el UserPhone se propagó
+        replyGenerated.BotPhoneNumberId.Should().Be(botPhone);
+        replyGenerated.PhoneNumber.Should().Be(userPhone);
+        replyGenerated.TenantId.Should().Be(tenantId);
     }
 
     [Fact]
     public async Task GivenPreviousConversation_WhenHandlerRuns_ThenItUsesHistoryAndAppendsReply()
     {
         // Arrange
-        var botPhone = "34111222333"; // TENANT ID
-        var userPhone = "34999555111"; // STREAM ID (Unique user phone number for this test)
+        var tenantId = "club-sama";
+        var botPhone = "34111222333";
+        var userPhone = "34999555111";
 
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(botPhone);
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantId);
 
-        // 1. Pre-populate the Marten Event Store with a past conversation
-        // 🚀 Usamos los constructores actualizados con ambos IDs
-        session.Events.Append(userPhone, new MessageReceived("old.1", botPhone, userPhone, "Hola", DateTimeOffset.UtcNow));
-        session.Events.Append(userPhone, new ReplyGenerated("old.1", botPhone, userPhone, "¡Hola! Soy SamàBot."));
-        session.Events.Append(userPhone, new MessageReceived("atomic.Chat2", botPhone, userPhone, "¿Me recuerdas?", DateTimeOffset.UtcNow));
+        // 1. Pre-populate the Marten Event Store
+        session.Events.Append(userPhone, new MessageReceived("old.1", userPhone, "Hola", tenantId, botPhone, DateTimeOffset.UtcNow));
+        session.Events.Append(userPhone, new ReplyGenerated("old.1", botPhone, userPhone, "¡Hola! Soy SamàBot.", tenantId));
+        session.Events.Append(userPhone, new MessageReceived("atomic.Chat2", userPhone, "¿Me recuerdas?", tenantId, botPhone, DateTimeOffset.UtcNow));
         await session.SaveChangesAsync();
 
         // 2. The new incoming message
@@ -67,7 +68,8 @@ public class MessageAnalyzedHandlerTests(IntegrationAppFixture fixture)
             BotPhoneNumberId: botPhone,
             PhoneNumber: userPhone,
             LanguageCode: "es",
-            OriginalText: "¿Me recuerdas?"
+            OriginalText: "¿Me recuerdas?",
+            TenantId: tenantId
         );
 
         // Act
@@ -77,20 +79,17 @@ public class MessageAnalyzedHandlerTests(IntegrationAppFixture fixture)
         var streamEvents = await session.Events.FetchStreamAsync(userPhone);
         var replies = streamEvents.Select(e => e.Data).OfType<ReplyGenerated>().ToList();
 
-        replies.Should().HaveCount(2, "There should be the old reply and the newly generated one.");
+        replies.Should().HaveCount(2);
         replies.Last().MessageId.Should().Be("atomic.Chat2");
 
-        // Verify that the Bedrock mock was invoked with a payload containing the full conversation history
         fixture.BedrockClientMock.Verify(c => c.InvokeModelAsync(It.Is<InvokeModelRequest>(req =>
             VerifyChatHistoryPayload(req)
-        ), It.IsAny<CancellationToken>()), Times.Once, "The LLM payload must contain both the history and the new message.");
+        ), It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // Helper method to inspect the MemoryStream inside the Moq verification safely
     private static bool VerifyChatHistoryPayload(InvokeModelRequest request)
     {
         var requestJson = System.Text.Encoding.UTF8.GetString(request.Body.ToArray());
-
         return requestJson.Contains("Hola") &&
                requestJson.Contains("¡Hola! Soy SamàBot.") &&
                requestJson.Contains("¿Me recuerdas?");

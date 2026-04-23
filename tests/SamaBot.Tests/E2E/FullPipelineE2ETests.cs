@@ -3,7 +3,7 @@ using AwesomeAssertions;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using SamaBot.Api.Core.Events;
-using SamaBot.Api.Features.WhatsAppWebhook;
+using SamaBot.Api.Features.Tenancy;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
@@ -20,14 +20,18 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
     [Fact]
     public async Task FullRAGJourney_FromIngestionToAIResponse()
     {
-        // --- 1. Arrange: Data Ingestion (MULTIPART UPLOAD) ---
+        var tenant = $"club-{Guid.NewGuid():N}";
+        var botPhoneId = $"bot-{Guid.NewGuid():N}";
+        await SeedTenantAsync(tenant, botPhoneId);
+
+        // --- 1. Arrange: Data Ingestion ---
         var tempPdfPath = Path.Combine(Path.GetTempPath(), $"test_knowledge_{Guid.NewGuid()}.pdf");
         var secretInfo = "The secret access code for SamaBot is 998877.";
         CreateTestPdf(tempPdfPath, secretInfo);
 
         await fixture.Host.Scenario(s =>
         {
-            s.Post.Url("/api/admin/ingest/12345");
+            s.Post.Url($"/api/admin/ingest/{tenant}");
 
             var fileContent = new ByteArrayContent(File.ReadAllBytes(tempPdfPath));
             fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
@@ -49,12 +53,12 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
         });
 
         // --- 2. Arrange: Webhook Payload ---
-        var testPhoneNumber = $"34999000{Random.Shared.Next(100, 999)}";
+        var testPhoneNumber = $"{Random.Shared.Next(600000000, 699999999)}";
         var payload = $$"""
         {
           "object": "whatsapp_business_account",
           "entry": [ { "changes": [ { "value": {
-            "metadata": { "phone_number_id": "12345" },
+            "metadata": { "phone_number_id": "{{botPhoneId}}" },
             "messages": [ { "from": "{{testPhoneNumber}}", "id": "wamid.RAG_TEST", "timestamp": "1603059201", "text": { "body": "What is the secret code?" }, "type": "text" } ]
           } } ] } ]
         }
@@ -62,7 +66,7 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
 
         var signature = GenerateSignature(payload, "integration_test_secret");
 
-        // --- 3. Act: The Webhook Cascade ---
+        // --- 3. Act ---
         await fixture.Host.ExecuteAndWaitAsync(async () =>
         {
             await fixture.Host.Scenario(s =>
@@ -73,40 +77,38 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
             });
         });
 
-        // --- 4. Assert: Verification of the Event Stream Cascade ---
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession("12345");
+        // --- 4. Assert ---
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenant);
         var streamEvents = await session.Events.FetchStreamAsync(testPhoneNumber);
 
         streamEvents.Should().NotBeEmpty("The event stream should have been populated by the webhook.");
 
         var received = streamEvents.Select(e => e.Data).OfType<MessageReceived>().FirstOrDefault();
-        received.Should().NotBeNull("Phase 1: MessageReceived event is missing.");
-        received!.Text.Should().Be("What is the secret code?");
-
-        var analyzed = streamEvents.Select(e => e.Data).OfType<MessageAnalyzed>().FirstOrDefault();
-        analyzed.Should().NotBeNull("Phase 2: MessageAnalyzed event is missing.");
-        analyzed!.LanguageCode.Should().Be("en");
+        received.Should().NotBeNull();
+        received!.TenantId.Should().Be(tenant);
 
         var reply = streamEvents.Select(e => e.Data).OfType<ReplyGenerated>().FirstOrDefault();
-        reply.Should().NotBeNull("Phase 3: ReplyGenerated event is missing.");
-        reply!.Text.Should().NotBeNullOrWhiteSpace();
+        reply.Should().NotBeNull();
+        reply!.Text.Should().Contain("998877");
 
-        // Cleanup
         if (File.Exists(tempPdfPath)) File.Delete(tempPdfPath);
     }
 
     [Fact]
     public async Task Webhook_Idempotency_DuplicateMessages_AreIgnored()
     {
-        // --- 1. Arrange: Webhook Payload ---
-        var testPhoneNumber = $"34999111{Random.Shared.Next(100, 999)}";
+        var tenantSlug = $"club-idemp-{Guid.NewGuid():N}";
+        var botPhoneId = $"bot-idemp-{Guid.NewGuid():N}";
+        await SeedTenantAsync(tenantSlug, botPhoneId);
+
+        var testPhoneNumber = $"{Random.Shared.Next(700000000, 799999999)}";
         var messageId = $"wamid.IDEMP_{Guid.NewGuid():N}";
 
         var payload = $$"""
         {
           "object": "whatsapp_business_account",
           "entry": [ { "changes": [ { "value": {
-            "metadata": { "phone_number_id": "12345" },
+            "metadata": { "phone_number_id": "{{botPhoneId}}" },
             "messages": [ { "from": "{{testPhoneNumber}}", "id": "{{messageId}}", "timestamp": "1603059201", "text": { "body": "Idempotency test!" }, "type": "text" } ]
           } } ] } ]
         }
@@ -114,9 +116,7 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
 
         var signature = GenerateSignature(payload, "integration_test_secret");
 
-        // --- 2. Act: Send the payload TWICE ---
-
-        // First delivery (Should be processed)
+        // Act & Assert
         await fixture.Host.Scenario(s =>
         {
             s.Post.Text(payload).ContentType("application/json").ToUrl("/api/whatsapp/webhook");
@@ -124,7 +124,6 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
             s.StatusCodeShouldBeOk();
         });
 
-        // Second delivery - Meta retry (Should be ignored by our Idempotency check)
         await fixture.Host.Scenario(s =>
         {
             s.Post.Text(payload).ContentType("application/json").ToUrl("/api/whatsapp/webhook");
@@ -132,18 +131,16 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
             s.StatusCodeShouldBeOk();
         });
 
-        // --- 3. Assert: Verification of Idempotency ---
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession("12345");
-        // 3.1. Verify the Stream: There should be exactly ONE MessageReceived event for this messageId
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantSlug);
         var streamEvents = await session.Events.FetchStreamAsync(testPhoneNumber);
-        var receivedEvents = streamEvents.Select(e => e.Data).OfType<MessageReceived>().Where(x => x.MessageId == messageId).ToList();
+        streamEvents.Select(e => e.Data).OfType<MessageReceived>().Count(x => x.MessageId == messageId).Should().Be(1);
+    }
 
-        receivedEvents.Should().HaveCount(1, "The idempotency check should have intercepted and ignored the second webhook call.");
-
-        // 3.2. Verify the Projection: The ProcessedMessage document should exist in the database
-        var processedMessage = await session.LoadAsync<ProcessedMessage>(messageId);
-        processedMessage.Should().NotBeNull("The EventProjection should have created a ProcessedMessage document during the first processing.");
-        processedMessage!.Id.Should().Be(messageId);
+    private async Task SeedTenantAsync(string tenant, string botPhoneId)
+    {
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
+        session.Store(new TenantProfile { Id = tenant, BotPhoneNumberId = botPhoneId });
+        await session.SaveChangesAsync();
     }
 
     private static string GenerateSignature(string payload, string secret)

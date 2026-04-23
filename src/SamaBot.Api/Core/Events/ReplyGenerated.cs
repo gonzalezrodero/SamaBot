@@ -4,4 +4,5 @@ public record ReplyGenerated(
     string MessageId,
     string BotPhoneNumberId,
     string PhoneNumber,
-    string Text);
+    string Text,
+    string TenantId);
