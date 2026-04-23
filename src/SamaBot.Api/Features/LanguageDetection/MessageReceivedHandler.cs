@@ -5,7 +5,7 @@ namespace SamaBot.Api.Features.LanguageDetection;
 
 public class MessageReceivedHandler
 {
-    public async Task<MessageAnalyzed> Handle(
+    public static async Task<MessageAnalyzed> Handle(
         MessageReceived @event,
         IDocumentStore store,
         ILanguageDetector languageDetector,

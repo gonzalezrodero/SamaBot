@@ -5,7 +5,7 @@ namespace SamaBot.Api.Features.WhatsAppWebhook;
 
 public class ProcessWhatsAppMessageHandler
 {
-    public async Task<MessageReceived?> Handle(
+    public static async Task<MessageReceived?> Handle(
         ProcessWhatsAppMessage command,
         IDocumentStore store, 
         CancellationToken ct)
