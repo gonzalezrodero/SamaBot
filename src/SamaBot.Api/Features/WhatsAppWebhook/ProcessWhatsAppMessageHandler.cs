@@ -3,7 +3,7 @@ using SamaBot.Api.Core.Events;
 
 namespace SamaBot.Api.Features.WhatsAppWebhook;
 
-public class ProcessWhatsAppMessageHandler
+public static class ProcessWhatsAppMessageHandler
 {
     public static async Task<MessageReceived?> Handle(
         ProcessWhatsAppMessage command,

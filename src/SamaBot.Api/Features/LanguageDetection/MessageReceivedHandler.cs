@@ -3,7 +3,7 @@ using SamaBot.Api.Core.Events;
 
 namespace SamaBot.Api.Features.LanguageDetection;
 
-public class MessageReceivedHandler
+public static class MessageReceivedHandler
 {
     public static async Task<MessageAnalyzed> Handle(
         MessageReceived @event,

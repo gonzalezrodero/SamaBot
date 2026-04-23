@@ -5,7 +5,7 @@ using System.Text;
 
 namespace SamaBot.Api.Features.Chat;
 
-public class MessageAnalyzedHandler
+public static class MessageAnalyzedHandler
 {
     private const string SystemPromptTemplate = """
         You are the official Information Assistant for the organization. 
