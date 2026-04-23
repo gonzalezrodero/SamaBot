@@ -11,13 +11,19 @@ resource "aws_security_group" "db_sg" {
   vpc_id      = data.terraform_remote_state.network.outputs.vpc_id
 
   ingress {
-    description = "PostgreSQL from within VPC"
+    description     = "PostgreSQL from ECS Tasks"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [data.terraform_remote_state.compute.outputs.ecs_sg_id]
+  }
+
+  ingress {
+    description = "Direct access from Daniel Laptop"
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    # For now, allow all VPC traffic. 
-    # Later we will scope this down to the ECS Tasks Security Group.
-    cidr_blocks = ["10.0.0.0/16"]
+    cidr_blocks = ["176.84.209.177/32"]
   }
 
   egress {
@@ -33,7 +39,7 @@ resource "aws_security_group" "db_sg" {
 # ==========================================
 resource "aws_db_subnet_group" "db_subnets" {
   name       = "${var.project_name}-db-subnet-group"
-  subnet_ids = data.terraform_remote_state.network.outputs.private_subnet_ids
+  subnet_ids = data.terraform_remote_state.network.outputs.public_subnet_ids
 
   tags = {
     Name = "${var.project_name}-db-subnet-group"
@@ -63,7 +69,7 @@ resource "aws_db_instance" "postgres" {
 
   db_subnet_group_name   = aws_db_subnet_group.db_subnets.name
   vpc_security_group_ids = [aws_security_group.db_sg.id]
-  publicly_accessible    = false
+  publicly_accessible    = true
   skip_final_snapshot    = true
 
   manage_master_user_password = true
