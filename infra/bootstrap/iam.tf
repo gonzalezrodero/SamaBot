@@ -56,8 +56,8 @@ resource "aws_iam_policy" "bedrock_cheap_models" {
         Effect = "Allow"
         Action = "bedrock:InvokeModel"
         Resource = [
-          "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
-          "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/*",
+          "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+          "arn:aws:bedrock:*:${data.aws_caller_identity.current.account_id}:inference-profile/*",
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-text-lite-v1",
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-text-express-v1",
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-embed-text-v2:0"
