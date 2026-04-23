@@ -29,7 +29,7 @@ public class ChatService(IAmazonBedrockRuntime client, IOptions<BedrockSettings>
             max_tokens = settings.MaxTokens,
             temperature = settings.Temperature,
             system = systemPrompt,
-            messages = history
+            messages = FormatChatMessages(history)
         };
 
         var request = new InvokeModelRequest
@@ -51,6 +51,16 @@ public class ChatService(IAmazonBedrockRuntime client, IOptions<BedrockSettings>
             .GetProperty("text")
             .GetString() ?? string.Empty;
     }
+
+    private static List<BedrockMessage> FormatChatMessages(List<ChatMessage> history)
+    {
+        return [.. history.Select(m => new BedrockMessage(
+            Role: m.Role.ToLowerInvariant(),
+            Content: [new BedrockContentBlock("text", m.Content)]
+        ))];
+    }
 }
 
 public record ChatMessage(string Role, string Content);
+public record BedrockMessage(string Role, BedrockContentBlock[] Content);
+public record BedrockContentBlock(string Type, string Text);

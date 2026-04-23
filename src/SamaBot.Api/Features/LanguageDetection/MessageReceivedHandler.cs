@@ -6,23 +6,25 @@ namespace SamaBot.Api.Features.LanguageDetection;
 public class MessageReceivedHandler
 {
     public async Task<MessageAnalyzed> Handle(
-        MessageReceived @event, 
-        IDocumentSession session, 
-        ILanguageDetector languageDetector, 
+        MessageReceived @event,
+        IDocumentStore store,
+        ILanguageDetector languageDetector,
         CancellationToken cancellationToken)
     {
-        // Use the LLM abstraction to classify the language
         var languageCode = await languageDetector.DetectLanguageAsync(@event.Text, cancellationToken);
-        
+
         var analyzedEvent = new MessageAnalyzed(
             MessageId: @event.MessageId,
+            BotPhoneNumberId: @event.BotPhoneNumberId,
             PhoneNumber: @event.PhoneNumber,
             LanguageCode: languageCode,
-            @event.Text
+            OriginalText: @event.Text
         );
 
-        // Append the new phase to the Marten event stream
+        using var session = store.LightweightSession(@event.BotPhoneNumberId);
         session.Events.Append(@event.PhoneNumber, analyzedEvent);
+
+        await session.SaveChangesAsync(cancellationToken);
 
         return analyzedEvent;
     }

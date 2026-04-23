@@ -25,13 +25,14 @@ public class MessageAnalyzedHandler
         """;
 
     public async Task<ReplyGenerated> Handle(
-            MessageAnalyzed @event,
-            IDocumentSession session,
-            IKnowledgeBaseService knowledgeBase,
-            IChatService chatService,
-            CancellationToken ct)
+                MessageAnalyzed @event,
+                IDocumentStore store,
+                IKnowledgeBaseService knowledgeBase,
+                IChatService chatService,
+                CancellationToken ct)
     {
-        var relevantChunks = await knowledgeBase.SearchAsync(@event.OriginalText, limit: 10, ct: ct);
+        using var session = store.LightweightSession(@event.BotPhoneNumberId);
+        var relevantChunks = await knowledgeBase.SearchAsync(@event.BotPhoneNumberId, @event.OriginalText, limit: 10, ct: ct);
 
         var contextBuilder = new StringBuilder();
         foreach (var chunk in relevantChunks)
@@ -42,13 +43,16 @@ public class MessageAnalyzedHandler
         var systemMessage = string.Format(SystemPromptTemplate, @event.LanguageCode, contextBuilder);
 
         var chatHistory = await ExtractChatHistory(@event.PhoneNumber, session, ct);
+
         var replyText = await chatService.GetResponseAsync(systemMessage, chatHistory, ct);
 
         if (string.IsNullOrWhiteSpace(replyText))
             replyText = "I'm sorry, I couldn't process that request.";
 
-        var replyEvent = new ReplyGenerated(@event.MessageId, @event.PhoneNumber, replyText);
+        var replyEvent = new ReplyGenerated(@event.MessageId, @event.BotPhoneNumberId, @event.PhoneNumber, replyText);
+
         session.Events.Append(@event.PhoneNumber, replyEvent);
+        await session.SaveChangesAsync(ct);
 
         return replyEvent;
     }
@@ -61,7 +65,7 @@ public class MessageAnalyzedHandler
         {
             MessageReceived userMsg => new ChatMessage("user", userMsg.Text),
             ReplyGenerated botReply => new ChatMessage("assistant", botReply.Text),
-            _ => null 
+            _ => null
         })
         .OfType<ChatMessage>()];
     }

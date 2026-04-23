@@ -22,15 +22,21 @@ public class PdfIngestionServiceTests
     public async Task IngestPdfStreamAsync_MultiplePages_CombinesTextCorrectly()
     {
         // Arrange
+        var tenantId = "test-tenant-123";
         var pages = new[] { "Page 1 content", "Page 2 content" };
         using var pdfStream = CreateTestPdfStream(pages);
 
         // Act
-        await sut.IngestPdfStreamAsync(pdfStream, "test_document.pdf", CancellationToken.None);
+        await sut.IngestPdfStreamAsync(tenantId, pdfStream, "test_document.pdf", CancellationToken.None);
 
         // Assert
         mocker.GetMock<IKnowledgeBaseService>().Verify(k =>
+            k.ClearTenantChunksAsync(tenantId, It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        mocker.GetMock<IKnowledgeBaseService>().Verify(k =>
             k.IngestChunksAsync(
+                tenantId,
                 It.Is<IEnumerable<string>>(chunks =>
                     chunks.Any(c => c.Contains("Page 1")) && chunks.Any(c => c.Contains("Page 2"))),
                 "test_document.pdf",
@@ -42,16 +48,18 @@ public class PdfIngestionServiceTests
     public async Task IngestPdfStreamAsync_LongText_CreatesOverlappingChunks()
     {
         // Arrange
+        var tenantId = "test-tenant-123";
         // 1200 chars to trigger chunking (chunkSize: 1000, overlap: 200)
         var longText = new string('A', 1200);
         using var pdfStream = CreateTestPdfStream([longText]);
 
         // Act
-        await sut.IngestPdfStreamAsync(pdfStream, "long_document.pdf", CancellationToken.None);
+        await sut.IngestPdfStreamAsync(tenantId, pdfStream, "long_document.pdf", CancellationToken.None);
 
         // Assert
         mocker.GetMock<IKnowledgeBaseService>().Verify(k =>
             k.IngestChunksAsync(
+                tenantId,
                 It.Is<IEnumerable<string>>(chunks => chunks.Count() == 2),
                 "long_document.pdf",
                 It.IsAny<CancellationToken>()),

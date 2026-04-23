@@ -6,14 +6,14 @@ namespace SamaBot.Api.Features.Knowledge;
 
 public interface IPdfIngestionService
 {
-    Task IngestPdfStreamAsync(Stream pdfStream, string fileName, CancellationToken ct = default);
+    Task IngestPdfStreamAsync(string tenantId, Stream pdfStream, string fileName, CancellationToken ct = default);
 }
 
 public class PdfIngestionService(
     IKnowledgeBaseService knowledgeBaseService,
     ILogger<PdfIngestionService> logger) : IPdfIngestionService
 {
-    public async Task IngestPdfStreamAsync(Stream pdfStream, string fileName, CancellationToken ct = default)
+    public async Task IngestPdfStreamAsync(string tenantId, Stream pdfStream, string fileName, CancellationToken ct = default)
     {
         using var document = PdfDocument.Open(pdfStream);
         var textBuilder = new StringBuilder();
@@ -24,12 +24,14 @@ public class PdfIngestionService(
         }
 
         var chunks = ChunkText(textBuilder.ToString(), 1000, 200);
+        await knowledgeBaseService.ClearTenantChunksAsync(tenantId, ct);
 
-        await knowledgeBaseService.IngestChunksAsync(chunks, fileName, ct);
+        // Pass the tenantId to the ingestion method
+        await knowledgeBaseService.IngestChunksAsync(tenantId, chunks, fileName, ct);
 
         if (logger.IsEnabled(LogLevel.Information))
         {
-            logger.LogInformation("Successfully ingested {ChunkCount} chunks from {FileName}", chunks.Count, fileName);
+            logger.LogInformation("Successfully ingested {ChunkCount} chunks for tenant {TenantId} from {FileName}", chunks.Count, tenantId, fileName);
         }
     }
 
