@@ -4,24 +4,18 @@ using SamaBot.Api.Core.Events;
 
 namespace SamaBot.Api.Features.WhatsAppDispatcher;
 
-public class ReplyGeneratedHandler
+public static class ReplyGeneratedHandler
 {
-    private readonly IWhatsAppClient whatsappClient;
-    private readonly WhatsAppOptions options;
-
-    public ReplyGeneratedHandler(
+    public static async Task Handle(
+        ReplyGenerated @event,
         IWhatsAppClient whatsappClient,
-        IOptions<WhatsAppOptions> options)
+        IOptions<WhatsAppOptions> options,
+        CancellationToken ct)
     {
-        this.whatsappClient = whatsappClient;
-        this.options = options.Value;
+        var config = options.Value;
+        ArgumentException.ThrowIfNullOrWhiteSpace(config.AccessToken);
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(this.options.AccessToken);
-    }
-
-    public async Task Handle(ReplyGenerated @event, CancellationToken ct)
-    {
-        var token = $"Bearer {options.AccessToken}";
+        var token = $"Bearer {config.AccessToken}";
 
         var request = new WhatsAppTextRequest(
             To: @event.PhoneNumber,

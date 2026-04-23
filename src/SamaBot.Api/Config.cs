@@ -10,6 +10,7 @@ using SamaBot.Api.Common.Configuration;
 using SamaBot.Api.Core.Entities;
 using SamaBot.Api.Features.Chat;
 using SamaBot.Api.Features.Knowledge;
+using SamaBot.Api.Features.Knowledge.Services;
 using SamaBot.Api.Features.LanguageDetection;
 using SamaBot.Api.Features.WhatsAppDispatcher;
 using SamaBot.Api.Features.WhatsAppWebhook;

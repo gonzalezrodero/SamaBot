@@ -3,10 +3,10 @@ using Marten;
 using Moq;
 using Moq.AutoMock;
 using SamaBot.Api.Core.Entities;
-using SamaBot.Api.Features.Knowledge;
+using SamaBot.Api.Features.Knowledge.Services;
 using System.Linq.Expressions;
 
-namespace SamaBot.Tests.Features.Knowledge;
+namespace SamaBot.Tests.Features.Knowledge.Services;
 
 public class KnowledgeBaseServiceTests
 {

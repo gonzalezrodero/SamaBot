@@ -1,6 +1,6 @@
 ﻿using Marten;
 using SamaBot.Api.Core.Events;
-using SamaBot.Api.Features.Knowledge;
+using SamaBot.Api.Features.Knowledge.Services;
 using System.Text;
 
 namespace SamaBot.Api.Features.Chat;

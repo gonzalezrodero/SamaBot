@@ -2,7 +2,7 @@
 using Amazon.BedrockRuntime.Model;
 using System.Text.Json;
 
-namespace SamaBot.Api.Features.Knowledge;
+namespace SamaBot.Api.Features.Knowledge.Services;
 
 public interface IEmbeddingService
 {

@@ -1,32 +1,24 @@
-﻿using System.Text;
-using UglyToad.PdfPig;
-using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
+﻿namespace SamaBot.Api.Features.Knowledge.Services;
 
-namespace SamaBot.Api.Features.Knowledge;
-
-public interface IPdfIngestionService
+public interface IKnowledgeIngestionService
 {
-    Task IngestPdfStreamAsync(string tenantId, Stream pdfStream, string fileName, CancellationToken ct = default);
+    Task IngestDocumentAsync(string tenantId, string extractedText, string fileName, CancellationToken ct = default);
 }
 
-public class PdfIngestionService(
+public class KnowledgeIngestionService(
     IKnowledgeBaseService knowledgeBaseService,
-    ILogger<PdfIngestionService> logger) : IPdfIngestionService
+    ILogger<KnowledgeIngestionService> logger) : IKnowledgeIngestionService
 {
-    public async Task IngestPdfStreamAsync(string tenantId, Stream pdfStream, string fileName, CancellationToken ct = default)
+    public async Task IngestDocumentAsync(string tenantId, string extractedText, string fileName, CancellationToken ct = default)
     {
-        using var document = PdfDocument.Open(pdfStream);
-        var textBuilder = new StringBuilder();
-
-        foreach (var page in document.GetPages())
+        if (string.IsNullOrWhiteSpace(extractedText))
         {
-            textBuilder.AppendLine(ContentOrderTextExtractor.GetText(page));
+            logger.LogWarning("Attempted to ingest empty text for tenant {TenantId}, file {FileName}", tenantId, fileName);
+            return;
         }
 
-        var chunks = ChunkText(textBuilder.ToString(), 1000, 200);
+        var chunks = ChunkText(extractedText, 1000, 200);
         await knowledgeBaseService.ClearTenantChunksAsync(tenantId, ct);
-
-        // Pass the tenantId to the ingestion method
         await knowledgeBaseService.IngestChunksAsync(tenantId, chunks, fileName, ct);
 
         if (logger.IsEnabled(LogLevel.Information))
