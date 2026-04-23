@@ -4,6 +4,7 @@ using Moq;
 using Moq.AutoMock;
 using SamaBot.Api.Core.Entities;
 using SamaBot.Api.Features.Knowledge;
+using System.Linq.Expressions;
 
 namespace SamaBot.Tests.Features.Knowledge;
 
@@ -11,10 +12,18 @@ public class KnowledgeBaseServiceTests
 {
     private readonly AutoMocker mocker;
     private readonly KnowledgeBaseService sut;
+    private readonly Mock<IDocumentSession> mockSession;
+    private const string TestTenantId = "34111222333";
 
     public KnowledgeBaseServiceTests()
     {
         mocker = new AutoMocker();
+
+        mockSession = new Mock<IDocumentSession>();
+        mocker.GetMock<IDocumentStore>()
+            .Setup(store => store.LightweightSession(TestTenantId))
+            .Returns(mockSession.Object);
+
         sut = mocker.CreateInstance<KnowledgeBaseService>();
     }
 
@@ -36,22 +45,22 @@ public class KnowledgeBaseServiceTests
             new(Guid.NewGuid(), "Result 1", "doc.pdf", mockVector, DateTimeOffset.UtcNow)
         };
 
-        mocker.GetMock<IDocumentSession>()
+        mockSession
             .Setup(s => s.QueryAsync<DocumentChunk>(
-                It.Is<string>(sql => sql.Contains("<=>")),
+                It.Is<string>(sql => sql.Contains("<=>") && sql.Contains("tenant_id = ?")),
                 It.IsAny<CancellationToken>(),
                 It.IsAny<object[]>()))
             .ReturnsAsync(expectedChunks);
 
-        // Act
-        var result = await sut.SearchAsync(query, limit: 1);
+        // Act 
+        var result = await sut.SearchAsync(TestTenantId, query, limit: 1);
 
         // Assert
         result.Should().NotBeNull();
         result.Should().HaveCount(1);
         result[0].Content.Should().Be("Result 1");
 
-        mocker.GetMock<IDocumentSession>().Verify(s =>
+        mockSession.Verify(s =>
             s.QueryAsync<DocumentChunk>(
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>(),
@@ -74,17 +83,28 @@ public class KnowledgeBaseServiceTests
             .ReturnsAsync(mockVector);
 
         // Act
-        await sut.IngestChunksAsync([content], source);
+        await sut.IngestChunksAsync(TestTenantId, [content], source);
 
         // Assert
-        mocker.GetMock<IDocumentSession>()
+        mockSession
             .Verify(s => s.Store(It.Is<DocumentChunk>(chunk =>
                 chunk.Content == content &&
                 chunk.SourceDocument == source &&
                 chunk.Embedding.SequenceEqual(mockVector))),
             Times.Once);
 
-        mocker.GetMock<IDocumentSession>()
+        mockSession
             .Verify(s => s.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ClearTenantChunksAsync_DeletesChunksAndSaves()
+    {
+        // Act
+        await sut.ClearTenantChunksAsync(TestTenantId);
+
+        // Assert
+        mockSession.Verify(s => s.DeleteWhere(It.IsAny<Expression<Func<DocumentChunk, bool>>>()), Times.Once);
+        mockSession.Verify(s => s.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

@@ -6,30 +6,31 @@ namespace SamaBot.Api.Features.Knowledge;
 
 public interface IKnowledgeBaseService
 {
-    Task<IReadOnlyList<DocumentChunk>> SearchAsync(string query, int limit = 3, CancellationToken ct = default);
-    Task IngestChunksAsync(IEnumerable<string> contents, string source, CancellationToken ct = default);
+    Task<IReadOnlyList<DocumentChunk>> SearchAsync(string tenantId, string query, int limit = 3, CancellationToken ct = default);
+    Task IngestChunksAsync(string tenantId, IEnumerable<string> contents, string source, CancellationToken ct = default);
+    Task ClearTenantChunksAsync(string tenantId, CancellationToken ct = default);
 }
 
 public class KnowledgeBaseService(
-    IDocumentSession session,
+    IDocumentStore store,
     IEmbeddingService embeddingService)
     : IKnowledgeBaseService
 {
-    public async Task<IReadOnlyList<DocumentChunk>> SearchAsync(
-            string query, int limit = 3, CancellationToken ct = default)
-    {
+    public async Task<IReadOnlyList<DocumentChunk>> SearchAsync(string tenantId, string query, int limit = 3, CancellationToken ct = default)
+    { 
+        using var session = store.LightweightSession(tenantId);
         var searchVector = await embeddingService.GenerateEmbeddingAsync(query, ct);
 
         var sql = @"
             SELECT data FROM mt_doc_documentchunk 
+            WHERE tenant_id = ?
             ORDER BY public.extract_embedding(data) <=> CAST(? AS vector) 
             LIMIT ?";
 
-        return [.. await session.QueryAsync<DocumentChunk>(sql, ct, searchVector, limit)];
+        return [.. await session.QueryAsync<DocumentChunk>(sql, ct, tenantId, searchVector, limit)];
     }
 
-    public async Task IngestChunksAsync(
-        IEnumerable<string> contents, string source, CancellationToken ct = default)
+    public async Task IngestChunksAsync(string tenantId, IEnumerable<string> contents, string source, CancellationToken ct = default)
     {
         var validChunks = contents.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
         if (validChunks.Count == 0) return;
@@ -56,7 +57,15 @@ public class KnowledgeBaseService(
             chunksToStore.Add(chunk);
         });
 
+        using var session = store.LightweightSession(tenantId);
         session.Store(chunksToStore.ToArray());
+        await session.SaveChangesAsync(ct);
+    }
+
+    public async Task ClearTenantChunksAsync(string tenantId, CancellationToken ct = default)
+    {
+        using var session = store.LightweightSession(tenantId);
+        session.DeleteWhere<DocumentChunk>(x => true);
         await session.SaveChangesAsync(ct);
     }
 }

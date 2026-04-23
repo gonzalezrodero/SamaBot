@@ -21,7 +21,7 @@ public class ChatServiceTests
 
         _defaultSettings = new BedrockSettings
         {
-            ModelId = "anthropic.claude-3-haiku-20240307-v1:0",
+            ModelId = "anthropic.claude-haiku-4-5-20251001-v1:0",
             MaxTokens = 500,
             Temperature = 0.5f
         };

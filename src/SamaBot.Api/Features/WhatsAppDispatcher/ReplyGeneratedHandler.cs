@@ -17,7 +17,6 @@ public class ReplyGeneratedHandler
         this.options = options.Value;
 
         ArgumentException.ThrowIfNullOrWhiteSpace(this.options.AccessToken);
-        ArgumentException.ThrowIfNullOrWhiteSpace(this.options.PhoneNumberId);
     }
 
     public async Task Handle(ReplyGenerated @event, CancellationToken ct)
@@ -29,7 +28,6 @@ public class ReplyGeneratedHandler
             Text: new WhatsAppMessageBody(@event.Text)
         );
 
-        var botId = options.PhoneNumberId;
-        await whatsappClient.SendMessageAsync(botId, request, token, ct);
+        await whatsappClient.SendMessageAsync(@event.BotPhoneNumberId, request, token, ct);
     }
 }

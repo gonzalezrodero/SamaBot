@@ -27,7 +27,7 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
 
         await fixture.Host.Scenario(s =>
         {
-            s.Post.Url("/api/admin/ingest");
+            s.Post.Url("/api/admin/ingest/12345");
 
             var fileContent = new ByteArrayContent(File.ReadAllBytes(tempPdfPath));
             fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
@@ -74,7 +74,7 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
         });
 
         // --- 4. Assert: Verification of the Event Stream Cascade ---
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession("12345");
         var streamEvents = await session.Events.FetchStreamAsync(testPhoneNumber);
 
         streamEvents.Should().NotBeEmpty("The event stream should have been populated by the webhook.");
@@ -133,8 +133,7 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
         });
 
         // --- 3. Assert: Verification of Idempotency ---
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
-
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession("12345");
         // 3.1. Verify the Stream: There should be exactly ONE MessageReceived event for this messageId
         var streamEvents = await session.Events.FetchStreamAsync(testPhoneNumber);
         var receivedEvents = streamEvents.Select(e => e.Data).OfType<MessageReceived>().Where(x => x.MessageId == messageId).ToList();

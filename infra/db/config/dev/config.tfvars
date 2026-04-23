@@ -2,5 +2,5 @@
 project_name      = "chatbot"
 aws_region        = "eu-west-1"
 db_instance_class = "db.t3.micro"
-multi_az          = false
+multi_az          = true
 allocated_storage = 20

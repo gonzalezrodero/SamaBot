@@ -5,15 +5,19 @@ namespace SamaBot.Api.Features.WhatsAppWebhook;
 
 public static class ProcessWhatsAppMessageHandler
 {
-    public static async Task<MessageReceived?> Handle(ProcessWhatsAppMessage command, IDocumentSession session)
+    public static async Task<MessageReceived?> Handle(
+        ProcessWhatsAppMessage command,
+        IDocumentStore store, 
+        CancellationToken ct)
     {
-        // 1. Idempotency Check (Meta Retry Problem)
-        if (await session.Query<ProcessedMessage>().AnyAsync(x => x.Id == command.MessageId))
+        using var session = store.LightweightSession(command.BotPhoneNumberId);
+
+        if (await session.Query<ProcessedMessage>().AnyAsync(x => x.Id == command.MessageId, ct))
         {
-            return null; 
+            return null;
         }
 
-        var received = new MessageReceived(
+        var receivedEvent = new MessageReceived(
             MessageId: command.MessageId,
             BotPhoneNumberId: command.BotPhoneNumberId,
             PhoneNumber: command.PhoneNumber,
@@ -21,7 +25,9 @@ public static class ProcessWhatsAppMessageHandler
             ReceivedAt: command.Timestamp
         );
 
-        session.Events.Append(command.PhoneNumber, received);
-        return received;
+        session.Events.Append(command.PhoneNumber, receivedEvent);
+        await session.SaveChangesAsync(ct);
+
+        return receivedEvent;
     }
 }

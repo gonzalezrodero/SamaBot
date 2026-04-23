@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.Events;
 using JasperFx.Events.Projections;
 using Marten;
+using Marten.Storage;
 using Npgsql;
 using SamaBot.Api.Common.Configuration;
 using SamaBot.Api.Core.Entities;
@@ -41,7 +42,12 @@ public static class Config
 
         services.AddMarten(opts =>
         {
+            opts.Connection(connectionString);
             opts.Events.StreamIdentity = StreamIdentity.AsString;
+            opts.Events.TenancyStyle = TenancyStyle.Conjoined;
+
+            opts.Policies.AllDocumentsAreMultiTenanted();
+
             opts.Storage.Add(new HnswIndexCustomizer());
             opts.Projections.Add<ProcessedMessageProjection>(ProjectionLifecycle.Inline);
             opts.Schema.For<DocumentChunk>();

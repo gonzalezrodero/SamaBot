@@ -4,8 +4,9 @@ namespace SamaBot.Api.Features.Knowledge;
 
 public class IngestPdfEndpoint
 {
-    [WolverinePost("/api/admin/ingest")]
+    [WolverinePost("/api/admin/ingest/{tenantId}")]
     public async Task<IResult> Ingest(
+        string tenantId,
         IFormFile file,
         IPdfIngestionService ingestionService,
         CancellationToken ct)
@@ -23,7 +24,7 @@ public class IngestPdfEndpoint
         try
         {
             using var stream = file.OpenReadStream();
-            await ingestionService.IngestPdfStreamAsync(stream, file.FileName, ct);
+            await ingestionService.IngestPdfStreamAsync(tenantId, stream, file.FileName, ct);
 
             return Results.Ok(new { Message = $"Successfully ingested {file.FileName} into the vector database." });
         }

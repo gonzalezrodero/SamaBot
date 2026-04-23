@@ -48,7 +48,6 @@ resource "aws_db_instance" "postgres" {
   engine         = "postgres"
   engine_version = "16"
 
-  # Usar las variables dinámicas
   instance_class    = var.db_instance_class
   allocated_storage = var.allocated_storage
   multi_az          = var.multi_az
@@ -68,4 +67,33 @@ resource "aws_db_instance" "postgres" {
   skip_final_snapshot    = true
 
   manage_master_user_password = true
+
+  # 1. Performance Insights
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7
+
+  # 2. Enhanced Monitoring
+  monitoring_interval = 60
+  monitoring_role_arn = aws_iam_role.rds_monitoring_role.arn
+}
+
+resource "aws_iam_role" "rds_monitoring_role" {
+  name = "${var.project_name}-rds-monitoring-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "monitoring.rds.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "rds_monitoring_attach" {
+  role       = aws_iam_role.rds_monitoring_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }

@@ -1,5 +1,6 @@
 ﻿using Alba;
 using AwesomeAssertions;
+using JasperFx.MultiTenancy;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using SamaBot.Api.Core.Entities;
@@ -17,6 +18,7 @@ public class IngestPdfEndpointTests(IntegrationAppFixture fixture)
     public async Task Post_Ingest_ValidFile_ReturnsOk_AndStoresChunksInMarten()
     {
         // Arrange
+        var tenantId = "test-tenant-999";
         var fileName = $"test_integration_{Guid.NewGuid()}.pdf";
         var pdfBytes = CreateSimplePdfBytes("Integration test content for RAG.");
 
@@ -24,7 +26,7 @@ public class IngestPdfEndpointTests(IntegrationAppFixture fixture)
         // Act
         await fixture.Host.Scenario(s =>
         {
-            s.Post.Url("/api/admin/ingest");
+            s.Post.Url($"/api/admin/ingest/{tenantId}");
 
             var fileContent = new ByteArrayContent(pdfBytes);
             fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
@@ -46,7 +48,7 @@ public class IngestPdfEndpointTests(IntegrationAppFixture fixture)
         });
 
         // Assert
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantId);
         var chunks = await session.Query<DocumentChunk>()
             .Where(x => x.SourceDocument == fileName)
             .ToListAsync();

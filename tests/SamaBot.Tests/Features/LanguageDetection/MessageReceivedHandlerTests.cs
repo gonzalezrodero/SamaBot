@@ -26,11 +26,11 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
         await fixture.Host.InvokeMessageAndWaitAsync(incomingEvent);
 
         // Assert: Verify only the outcome of this specific handler
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession("123");
         var streamEvents = await session.Events.FetchStreamAsync(testPhone);
-        
+
         var messageAnalyzed = streamEvents.FirstOrDefault(e => e.Data is MessageAnalyzed)?.Data as MessageAnalyzed;
-        
+
         messageAnalyzed.Should().NotBeNull();
         messageAnalyzed!.LanguageCode.Should().Be("en");
         messageAnalyzed.MessageId.Should().Be("atomic.Test1");
