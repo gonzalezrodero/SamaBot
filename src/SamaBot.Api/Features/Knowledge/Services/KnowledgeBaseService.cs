@@ -2,7 +2,7 @@
 using SamaBot.Api.Core.Entities;
 using System.Collections.Concurrent;
 
-namespace SamaBot.Api.Features.Knowledge;
+namespace SamaBot.Api.Features.Knowledge.Services;
 
 public interface IKnowledgeBaseService
 {

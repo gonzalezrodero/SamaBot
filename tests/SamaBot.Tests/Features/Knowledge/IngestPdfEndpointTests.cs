@@ -1,21 +1,22 @@
 ﻿using AwesomeAssertions;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Moq;
 using Moq.AutoMock;
 using SamaBot.Api.Features.Knowledge;
+using SamaBot.Api.Features.Knowledge.Extractors;
+using SamaBot.Api.Features.Knowledge.Services;
 
 namespace SamaBot.Tests.Features.Knowledge;
 
-public class IngestPdfEndpointTests
+public class IngestEndpointTests
 {
     private readonly AutoMocker mocker;
-    private readonly IngestPdfEndpoint sut;
+    private readonly IngestEndpoint sut;
 
-    public IngestPdfEndpointTests()
+    public IngestEndpointTests()
     {
         mocker = new AutoMocker();
-        sut = mocker.CreateInstance<IngestPdfEndpoint>();
+        sut = mocker.CreateInstance<IngestEndpoint>();
     }
 
     [Fact]
@@ -25,10 +26,11 @@ public class IngestPdfEndpointTests
         var fileMock = mocker.GetMock<IFormFile>();
         fileMock.Setup(f => f.Length).Returns(0); // Simulate empty file
 
-        var service = mocker.GetMock<IPdfIngestionService>().Object;
+        var extractors = new List<IDocumentExtractor>();
+        var service = mocker.GetMock<IKnowledgeIngestionService>().Object;
 
         // Act
-        var result = await sut.Ingest("TestTenant", fileMock.Object, service, CancellationToken.None);
+        var result = await sut.Ingest("TestTenant", fileMock.Object, extractors, service, CancellationToken.None);
 
         // Assert
         result.Should().BeAssignableTo<IStatusCodeHttpResult>()
@@ -36,17 +38,45 @@ public class IngestPdfEndpointTests
     }
 
     [Fact]
-    public async Task Ingest_InvalidContentType_ReturnsBadRequest()
+    public async Task Ingest_UnsupportedExtension_ReturnsBadRequest()
     {
         // Arrange
         var fileMock = mocker.GetMock<IFormFile>();
         fileMock.Setup(f => f.Length).Returns(100);
-        fileMock.Setup(f => f.ContentType).Returns("image/png"); // Not a PDF
+        fileMock.Setup(f => f.FileName).Returns("image.png");
 
-        var service = mocker.GetMock<IPdfIngestionService>().Object;
+        var pdfExtractorMock = new Mock<IDocumentExtractor>();
+        pdfExtractorMock.Setup(e => e.SupportedExtensions).Returns([".pdf"]);
+
+        var extractors = new List<IDocumentExtractor> { pdfExtractorMock.Object };
+        var service = mocker.GetMock<IKnowledgeIngestionService>().Object;
 
         // Act
-        var result = await sut.Ingest("TestTenant", fileMock.Object, service, CancellationToken.None);
+        var result = await sut.Ingest("TestTenant", fileMock.Object, extractors, service, CancellationToken.None);
+
+        // Assert
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>()
+              .Which.StatusCode.Should().Be(400);
+    }
+
+    [Fact]
+    public async Task Ingest_ExtractorReturnsEmptyText_ReturnsBadRequest()
+    {
+        // Arrange
+        var fileMock = mocker.GetMock<IFormFile>();
+        fileMock.Setup(f => f.Length).Returns(100);
+        fileMock.Setup(f => f.FileName).Returns("empty.pdf");
+        fileMock.Setup(f => f.OpenReadStream()).Returns(new MemoryStream());
+
+        var pdfExtractorMock = new Mock<IDocumentExtractor>();
+        pdfExtractorMock.Setup(e => e.SupportedExtensions).Returns([".pdf"]);
+        pdfExtractorMock.Setup(e => e.ExtractTextAsync(It.IsAny<Stream>())).ReturnsAsync(string.Empty);
+
+        var extractors = new List<IDocumentExtractor> { pdfExtractorMock.Object };
+        var service = mocker.GetMock<IKnowledgeIngestionService>().Object;
+
+        // Act
+        var result = await sut.Ingest("TestTenant", fileMock.Object, extractors, service, CancellationToken.None);
 
         // Assert
         result.Should().BeAssignableTo<IStatusCodeHttpResult>()
@@ -59,50 +89,58 @@ public class IngestPdfEndpointTests
         // Arrange
         var fileMock = mocker.GetMock<IFormFile>();
         fileMock.Setup(f => f.Length).Returns(100);
-        fileMock.Setup(f => f.ContentType).Returns("application/pdf");
         fileMock.Setup(f => f.FileName).Returns("error.pdf");
         fileMock.Setup(f => f.OpenReadStream()).Returns(new MemoryStream());
 
-        var serviceMock = mocker.GetMock<IPdfIngestionService>();
+        var pdfExtractorMock = new Mock<IDocumentExtractor>();
+        pdfExtractorMock.Setup(e => e.SupportedExtensions).Returns([".pdf"]);
+        pdfExtractorMock.Setup(e => e.ExtractTextAsync(It.IsAny<Stream>())).ReturnsAsync("Extracted content");
+
+        var extractors = new List<IDocumentExtractor> { pdfExtractorMock.Object };
+        var serviceMock = mocker.GetMock<IKnowledgeIngestionService>();
 
         serviceMock
-            .Setup(x => x.IngestPdfStreamAsync(It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new Exception("Random failure in Bedrock or DB"));
+            .Setup(x => x.IngestDocumentAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception("Random failure in DB"));
 
         // Act
-        var result = await sut.Ingest("TestTenant", fileMock.Object, serviceMock.Object, CancellationToken.None);
+        var result = await sut.Ingest("TestTenant", fileMock.Object, extractors, serviceMock.Object, CancellationToken.None);
 
         // Assert
         result.Should().BeAssignableTo<IStatusCodeHttpResult>()
               .Which.StatusCode.Should().Be(500);
     }
 
-    // 🚀 NUEVO TEST: El Happy Path
     [Fact]
-    public async Task Ingest_ValidPdf_ReturnsOkAndCallsServiceWithCorrectTenant()
+    public async Task Ingest_ValidFile_ReturnsOkAndCallsServiceWithCorrectTenant()
     {
         // Arrange
         var tenantId = "ClubSama-123";
-        var fileName = "reglas_2026.pdf";
+        var fileName = "reglas_2026.md";
+        var extractedText = "# Reglas 2026\n...";
 
         var fileMock = mocker.GetMock<IFormFile>();
         fileMock.Setup(f => f.Length).Returns(100);
-        fileMock.Setup(f => f.ContentType).Returns("application/pdf");
         fileMock.Setup(f => f.FileName).Returns(fileName);
         fileMock.Setup(f => f.OpenReadStream()).Returns(new MemoryStream());
 
-        var serviceMock = mocker.GetMock<IPdfIngestionService>();
+        var mdExtractorMock = new Mock<IDocumentExtractor>();
+        mdExtractorMock.Setup(e => e.SupportedExtensions).Returns([".md", ".txt"]);
+        mdExtractorMock.Setup(e => e.ExtractTextAsync(It.IsAny<Stream>())).ReturnsAsync(extractedText);
+
+        var extractors = new List<IDocumentExtractor> { mdExtractorMock.Object };
+        var serviceMock = mocker.GetMock<IKnowledgeIngestionService>();
 
         // Act
-        var result = await sut.Ingest(tenantId, fileMock.Object, serviceMock.Object, CancellationToken.None);
+        var result = await sut.Ingest(tenantId, fileMock.Object, extractors, serviceMock.Object, CancellationToken.None);
 
         // Assert
         result.Should().BeAssignableTo<IStatusCodeHttpResult>()
               .Which.StatusCode.Should().Be(200);
 
-        serviceMock.Verify(x => x.IngestPdfStreamAsync(
+        serviceMock.Verify(x => x.IngestDocumentAsync(
             tenantId,
-            It.IsAny<Stream>(),
+            extractedText,
             fileName,
             It.IsAny<CancellationToken>()),
         Times.Once);

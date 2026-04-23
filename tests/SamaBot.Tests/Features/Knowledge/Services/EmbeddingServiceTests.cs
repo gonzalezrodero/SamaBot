@@ -3,20 +3,20 @@ using Amazon.BedrockRuntime.Model;
 using AwesomeAssertions;
 using Moq;
 using Moq.AutoMock;
-using SamaBot.Api.Features.Knowledge;
+using SamaBot.Api.Features.Knowledge.Services;
 using System.Text;
 
-namespace SamaBot.Tests.Features.Knowledge;
+namespace SamaBot.Tests.Features.Knowledge.Services;
 
 public class EmbeddingServiceTests
 {
-    private readonly AutoMocker _mocker;
-    private readonly EmbeddingService _sut;
+    private readonly AutoMocker mocker;
+    private readonly EmbeddingService sut;
 
     public EmbeddingServiceTests()
     {
-        _mocker = new AutoMocker();
-        _sut = _mocker.CreateInstance<EmbeddingService>();
+        mocker = new AutoMocker();
+        sut = mocker.CreateInstance<EmbeddingService>();
     }
 
     [Fact]
@@ -36,12 +36,12 @@ public class EmbeddingServiceTests
         var responseStream = new MemoryStream(Encoding.UTF8.GetBytes(jsonResponse));
         var invokeResponse = new InvokeModelResponse { Body = responseStream };
 
-        _mocker.GetMock<IAmazonBedrockRuntime>()
+        mocker.GetMock<IAmazonBedrockRuntime>()
             .Setup(c => c.InvokeModelAsync(It.IsAny<InvokeModelRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(invokeResponse);
 
         // Act
-        var result = await _sut.GenerateEmbeddingAsync(textToEmbed);
+        var result = await sut.GenerateEmbeddingAsync(textToEmbed);
 
         // Assert
         result.Should().NotBeNull();
@@ -58,15 +58,15 @@ public class EmbeddingServiceTests
         var textToEmbed = "Testing the AWS payload";
         var responseStream = new MemoryStream(Encoding.UTF8.GetBytes("""{"embedding":[0.0]}"""));
 
-        _mocker.GetMock<IAmazonBedrockRuntime>()
+        mocker.GetMock<IAmazonBedrockRuntime>()
             .Setup(c => c.InvokeModelAsync(It.IsAny<InvokeModelRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new InvokeModelResponse { Body = responseStream });
 
         // Act
-        await _sut.GenerateEmbeddingAsync(textToEmbed);
+        await sut.GenerateEmbeddingAsync(textToEmbed);
 
         // Assert
-        _mocker.GetMock<IAmazonBedrockRuntime>()
+        mocker.GetMock<IAmazonBedrockRuntime>()
             .Verify(c => c.InvokeModelAsync(It.Is<InvokeModelRequest>(r =>
                 r.ModelId == "amazon.titan-embed-text-v2:0" &&
                 r.ContentType == "application/json" &&
