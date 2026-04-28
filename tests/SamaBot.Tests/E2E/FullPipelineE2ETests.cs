@@ -2,6 +2,7 @@ using Alba;
 using AwesomeAssertions;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
+using SamaBot.Api.Core.Entities;
 using SamaBot.Api.Core.Events;
 using SamaBot.Api.Features.Tenancy;
 using System.Net.Http.Headers;
@@ -10,7 +11,6 @@ using System.Text;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Fonts.Standard14Fonts;
 using UglyToad.PdfPig.Writer;
-using Wolverine.Tracking;
 
 namespace SamaBot.Tests.E2E;
 
@@ -52,6 +52,14 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
             s.StatusCodeShouldBeOk();
         });
 
+        // FIX: Wait safely until background ingestion tasks generate the chunks in the DB
+        await WaitForConditionAsync(async () =>
+        {
+            using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenant);
+            var chunks = await session.Query<DocumentChunk>().ToListAsync();
+            return chunks.Any();
+        }, "Document chunks were not generated in time.");
+
         // --- 2. Arrange: Webhook Payload ---
         var testPhoneNumber = $"{Random.Shared.Next(600000000, 699999999)}";
         var payload = $$"""
@@ -67,19 +75,24 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
         var signature = GenerateSignature(payload, "integration_test_secret");
 
         // --- 3. Act ---
-        await fixture.Host.ExecuteAndWaitAsync(async () =>
+        await fixture.Host.Scenario(s =>
         {
-            await fixture.Host.Scenario(s =>
-            {
-                s.Post.Text(payload).ContentType("application/json").ToUrl("/api/whatsapp/webhook");
-                s.WithRequestHeader("X-Hub-Signature-256", signature);
-                s.StatusCodeShouldBeOk();
-            });
+            s.Post.Text(payload).ContentType("application/json").ToUrl("/api/whatsapp/webhook");
+            s.WithRequestHeader("X-Hub-Signature-256", signature);
+            s.StatusCodeShouldBeOk();
         });
 
         // --- 4. Assert ---
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenant);
-        var streamEvents = await session.Events.FetchStreamAsync(testPhoneNumber);
+        // FIX: Poll Marten until the SQS background worker finishes processing the webhook
+        await WaitForConditionAsync(async () =>
+        {
+            using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenant);
+            var evts = await session.Events.FetchStreamAsync(testPhoneNumber);
+            return evts.Any();
+        }, "The event stream was never populated by the webhook.");
+
+        using var assertSession = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenant);
+        var streamEvents = await assertSession.Events.FetchStreamAsync(testPhoneNumber);
 
         streamEvents.Should().NotBeEmpty("The event stream should have been populated by the webhook.");
 
@@ -97,9 +110,9 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
     [Fact]
     public async Task Webhook_Idempotency_DuplicateMessages_AreIgnored()
     {
-        var tenantSlug = $"club-idemp-{Guid.NewGuid():N}";
+        var tenant = $"club-idemp-{Guid.NewGuid():N}";
         var botPhoneId = $"bot-idemp-{Guid.NewGuid():N}";
-        await SeedTenantAsync(tenantSlug, botPhoneId);
+        await SeedTenantAsync(tenant, botPhoneId);
 
         var testPhoneNumber = $"{Random.Shared.Next(700000000, 799999999)}";
         var messageId = $"wamid.IDEMP_{Guid.NewGuid():N}";
@@ -116,7 +129,7 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
 
         var signature = GenerateSignature(payload, "integration_test_secret");
 
-        // Act & Assert
+        // --- Act 1: First Message ---
         await fixture.Host.Scenario(s =>
         {
             s.Post.Text(payload).ContentType("application/json").ToUrl("/api/whatsapp/webhook");
@@ -124,6 +137,15 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
             s.StatusCodeShouldBeOk();
         });
 
+        // FIX: Ensure the first message is fully saved in the DB before sending the duplicate
+        await WaitForConditionAsync(async () =>
+        {
+            using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenant);
+            var evts = await session.Events.FetchStreamAsync(testPhoneNumber);
+            return evts.Any(e => e.Data is MessageReceived mr && mr.MessageId == messageId);
+        }, "First message was never processed by the background worker.");
+
+        // --- Act 2: Duplicate Message ---
         await fixture.Host.Scenario(s =>
         {
             s.Post.Text(payload).ContentType("application/json").ToUrl("/api/whatsapp/webhook");
@@ -131,10 +153,18 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
             s.StatusCodeShouldBeOk();
         });
 
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantSlug);
+        // Give Wolverine time to poll SQS, attempt to process, and reject the duplicate
+        await Task.Delay(2000);
+
+        // --- Assert ---
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenant);
         var streamEvents = await session.Events.FetchStreamAsync(testPhoneNumber);
-        streamEvents.Select(e => e.Data).OfType<MessageReceived>().Count(x => x.MessageId == messageId).Should().Be(1);
+
+        streamEvents.Select(e => e.Data).OfType<MessageReceived>().Count(x => x.MessageId == messageId)
+            .Should().Be(1, "The duplicate message should have been ignored by the handler.");
     }
+
+    // --- Helper Methods ---
 
     private async Task SeedTenantAsync(string tenant, string botPhoneId)
     {
@@ -155,5 +185,19 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
         var font = builder.AddStandard14Font(Standard14Font.Helvetica);
         builder.AddPage(595, 842).AddText(content, 10, new PdfPoint(25, 800), font);
         File.WriteAllBytes(path, builder.Build());
+    }
+
+    /// <summary>
+    /// Safely polls the database until a condition is met. Perfect for E2E tests with external async brokers.
+    /// </summary>
+    private static async Task WaitForConditionAsync(Func<Task<bool>> condition, string timeoutMessage, int timeoutSeconds = 15)
+    {
+        var timeout = DateTime.UtcNow.AddSeconds(timeoutSeconds);
+        while (DateTime.UtcNow < timeout)
+        {
+            if (await condition()) return;
+            await Task.Delay(300); // Check every 300ms
+        }
+        throw new TimeoutException(timeoutMessage);
     }
 }

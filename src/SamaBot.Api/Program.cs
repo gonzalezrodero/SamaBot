@@ -1,11 +1,9 @@
-﻿using Amazon.BedrockRuntime.Model;
-using JasperFx;
+﻿using JasperFx;
 using SamaBot.Api;
 using SamaBot.Api.Common.Extensions;
 using SamaBot.Api.Features.WhatsAppWebhook; // Added to access ProcessWhatsAppMessage
 using Wolverine;
 using Wolverine.AmazonSqs;
-using Wolverine.ErrorHandling;
 using Wolverine.Http;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,30 +27,10 @@ builder.Services.AddFeatures(builder.Configuration);
 builder.Host.UseWolverine(opts =>
 {
     opts.Policies.AutoApplyTransactions();
-    opts.Policies.OnException<ThrottlingException>()
-        .RetryWithCooldown(
-            TimeSpan.FromSeconds(3),
-            TimeSpan.FromSeconds(15),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.FromMinutes(1)
-        );
 
-    // Environment-aware SQS transport setup
-    if (builder.Environment.IsDevelopment())
-    {
-        opts.UseAmazonSqsTransportLocally()
-            .AutoProvision();
-    }
-    else
-    {
-        opts.UseAmazonSqsTransport();
-    }
+    opts.UseAmazonSqsTransport().AutoProvision();
 
-    // Route the incoming webhook payload to the SQS queue
-    // Make sure the queue name matches your Terraform definition exactly
-    opts.PublishMessage<ProcessWhatsAppMessage>()
-        .ToSqsQueue("chatbot-messages-queue");
-
+    opts.PublishMessage<ProcessWhatsAppMessage>().ToSqsQueue("chatbot-messages-queue");
     opts.ListenToSqsQueue("chatbot-messages-queue");
 });
 
