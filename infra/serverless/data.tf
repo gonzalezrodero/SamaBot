@@ -30,7 +30,7 @@ data "aws_secretsmanager_secret_version" "db_creds" {
 # Create a new secret for the Lambda containing the full connection string
 resource "aws_secretsmanager_secret" "app_connection_string" {
   name                    = "${var.project_name}-${var.app_environment}-marten-conn"
-  recovery_window_in_days = 0 
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "app_connection_string_value" {
