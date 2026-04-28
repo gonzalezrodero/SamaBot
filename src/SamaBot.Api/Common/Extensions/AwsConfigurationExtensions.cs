@@ -9,13 +9,23 @@ public static class AwsConfigurationExtensions
 {
     public static void AddAwsSecureConfiguration(this WebApplicationBuilder builder)
     {
+        using var secretsClient = new AmazonSecretsManagerClient();
+        using var ssmClient = new AmazonSimpleSystemsManagementClient();
+
+        builder.AddAwsSecureConfigurationCore(secretsClient, ssmClient);
+    }
+
+    public static void AddAwsSecureConfigurationCore(
+        this WebApplicationBuilder builder,
+        IAmazonSecretsManager secretsClient,
+        IAmazonSimpleSystemsManagement ssmClient)
+    {
         var secureConfig = new Dictionary<string, string?>();
 
         // 1. Fetch Marten connection string from Secrets Manager
         var martenArn = Environment.GetEnvironmentVariable("SECRET_ARN_MARTEN");
         if (!string.IsNullOrEmpty(martenArn))
         {
-            using var secretsClient = new AmazonSecretsManagerClient();
             var response = secretsClient.GetSecretValueAsync(new GetSecretValueRequest { SecretId = martenArn })
                                         .GetAwaiter()
                                         .GetResult();
@@ -27,7 +37,6 @@ public static class AwsConfigurationExtensions
         var ssmPath = Environment.GetEnvironmentVariable("SSM_PATH_WHATSAPP");
         if (!string.IsNullOrEmpty(ssmPath))
         {
-            using var ssmClient = new AmazonSimpleSystemsManagementClient();
             var response = ssmClient.GetParametersByPathAsync(new GetParametersByPathRequest
             {
                 Path = ssmPath,
