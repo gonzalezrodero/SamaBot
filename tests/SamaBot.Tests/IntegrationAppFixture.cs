@@ -1,6 +1,8 @@
 ﻿using Alba;
 using Amazon.BedrockRuntime;
 using Amazon.BedrockRuntime.Model;
+using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Containers;
 using JasperFx;
 using Marten;
 using Microsoft.AspNetCore.Hosting;
@@ -14,7 +16,6 @@ using SamaBot.Api.Features.WhatsAppDispatcher;
 using SamaBot.Api.Features.WhatsAppWebhook;
 using System.Text;
 using Testcontainers.PostgreSql;
-using Wolverine;
 
 namespace SamaBot.Tests;
 
@@ -26,6 +27,10 @@ public class IntegrationAppFixture : IAsyncLifetime
         .WithPassword("postgres")
         .Build();
 
+    private readonly IContainer _sqsContainer = new ContainerBuilder("softwaremill/elasticmq-native:latest")
+        .WithPortBinding(9324, true)
+        .Build();
+
     public IAlbaHost Host { get; private set; } = null!;
 
     public Mock<IAmazonBedrockRuntime> BedrockClientMock { get; } = new();
@@ -33,14 +38,26 @@ public class IntegrationAppFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        await _postgres.StartAsync();
+        await Task.WhenAll(_postgres.StartAsync(), _sqsContainer.StartAsync());
 
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
+        var sqsPort = _sqsContainer.GetMappedPublicPort(9324);
+        var sqsServiceUrl = $"http://localhost:{sqsPort}";
+
         Environment.SetEnvironmentVariable("ConnectionStrings__Marten", _postgres.GetConnectionString());
-        Environment.SetEnvironmentVariable("AWS_REGION", "eu-west-1");
-        Environment.SetEnvironmentVariable("AWS_ACCESS_KEY_ID", "testing");
-        Environment.SetEnvironmentVariable("AWS_SECRET_ACCESS_KEY", "testing");
         Environment.SetEnvironmentVariable("BedrockSettings__ModelId", "dummy-model");
+
+        // --- AWS GLOBAL OVERRIDES FOR TESTCONTAINERS ---
+        Environment.SetEnvironmentVariable("AWS_REGION", "eu-west-1");
+        Environment.SetEnvironmentVariable("AWS_ACCESS_KEY_ID", "dummy");
+        Environment.SetEnvironmentVariable("AWS_SECRET_ACCESS_KEY", "dummy");
+
+        // 1. Clear local session token: If you have AWS CLI (SSO) on your PC, the SDK tries to use it.
+        // We empty it so it doesn't send invalid tokens to ElasticMQ.
+        Environment.SetEnvironmentVariable("AWS_SESSION_TOKEN", "");
+
+        // 2. THE MAGIC: We redirect all AWS traffic at the SDK level to the Docker container
+        Environment.SetEnvironmentVariable("AWS_ENDPOINT_URL", sqsServiceUrl);
+        Environment.SetEnvironmentVariable("AWS_ENDPOINT_URL_SQS", sqsServiceUrl);
 
         Host = await AlbaHost.For<Program>(builder =>
         {
@@ -52,9 +69,6 @@ public class IntegrationAppFixture : IAsyncLifetime
 
                 services.Replace(ServiceDescriptor.Singleton(BedrockClientMock.Object));
                 services.Replace(ServiceDescriptor.Singleton(WhatsAppClientMock.Object));
-
-                services.Configure<WolverineOptions>(opts =>
-                    opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate);
 
                 services.Configure<StoreOptions>(opts => {
                     opts.AutoCreateSchemaObjects = AutoCreate.All;
@@ -132,6 +146,7 @@ public class IntegrationAppFixture : IAsyncLifetime
     {
         if (Host != null) await Host.DisposeAsync();
         await _postgres.DisposeAsync();
+        await _sqsContainer.DisposeAsync();
     }
 }
 

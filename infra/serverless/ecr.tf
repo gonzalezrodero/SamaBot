@@ -10,7 +10,8 @@ resource "aws_ecr_repository" "backend" {
     scan_on_push = true # Security: Automatically scan for vulnerabilities
   }
 
-  force_delete = false
+  # CRITICAL: Must be true so your destroy.yml pipeline can cleanly tear down the environment
+  force_delete = true
 }
 
 # Lifecycle policy to automatically delete old untagged images and save costs
