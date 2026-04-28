@@ -41,7 +41,9 @@
     <File Path="infra/network/config/dev/config.tfvars" />
   </Folder>
   <Folder Name="/infra/serverless/">
+    <File Path="infra/serverless/backend.tf" />
     <File Path="infra/serverless/data.tf" />
+    <File Path="infra/serverless/ecr.tf" />
     <File Path="infra/serverless/iam.tf" />
     <File Path="infra/serverless/lambda_api.tf" />
     <File Path="infra/serverless/lambda_worker.tf" />

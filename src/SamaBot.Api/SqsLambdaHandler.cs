@@ -1,8 +1,10 @@
-﻿namespace SamaBot.Api;
-
-using Amazon.Lambda.Core;
+﻿using Amazon.Lambda.Core;
 using Amazon.Lambda.SQSEvents;
 using Wolverine;
+
+[assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
+
+namespace SamaBot.Api;
 
 // The SqsLambdaHandler is the entry point for the Worker
 public class SqsLambdaHandler(IMessageBus bus)
