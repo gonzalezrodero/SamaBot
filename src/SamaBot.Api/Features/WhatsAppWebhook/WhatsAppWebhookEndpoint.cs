@@ -39,7 +39,7 @@ public class WhatsAppWebhookEndpoint
         var message = await processor.ExtractMessageAsync(request);
         if (message != null)
         {
-            await bus.PublishAsync(message);
+            await bus.InvokeAsync(message);
         }
 
         return Results.Ok();
