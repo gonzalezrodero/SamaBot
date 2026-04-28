@@ -9,6 +9,19 @@ public static class AwsConfigurationExtensions
 {
     public static void AddAwsSecureConfiguration(this WebApplicationBuilder builder)
     {
+        var martenArn = Environment.GetEnvironmentVariable("SECRET_ARN_MARTEN");
+        var ssmPath = Environment.GetEnvironmentVariable("SSM_PATH_WHATSAPP");
+
+        if (string.IsNullOrEmpty(martenArn) && string.IsNullOrEmpty(ssmPath))
+        {
+            return;
+        }
+
+        if (Environment.GetCommandLineArgs().Contains("codegen"))
+        {
+            return;
+        }
+
         using var secretsClient = new AmazonSecretsManagerClient();
         using var ssmClient = new AmazonSimpleSystemsManagementClient();
 
