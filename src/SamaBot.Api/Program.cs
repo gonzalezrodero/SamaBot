@@ -1,11 +1,17 @@
 ﻿using Amazon.BedrockRuntime.Model;
 using JasperFx;
 using SamaBot.Api;
+using SamaBot.Api.Common.Extensions;
+using SamaBot.Api.Features.WhatsAppWebhook; // Added to access ProcessWhatsAppMessage
 using Wolverine;
+using Wolverine.AmazonSqs;
 using Wolverine.ErrorHandling;
 using Wolverine.Http;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Load AWS Secrets dynamically before initializing Marten
+builder.AddAwsSecureConfiguration();
 
 // Configuration Variables
 var connectionString = builder.Configuration.GetConnectionString("Marten")!;
@@ -16,7 +22,6 @@ builder.Services.AddWolverineHttp();
 
 // 2. Domain & Infrastructure Extensions
 builder.Services.AddDatabase(connectionString);
-
 builder.Services.AddAi(builder.Configuration);
 builder.Services.AddFeatures(builder.Configuration);
 
@@ -31,9 +36,31 @@ builder.Host.UseWolverine(opts =>
             TimeSpan.FromSeconds(30),
             TimeSpan.FromMinutes(1)
         );
+
+    // Environment-aware SQS transport setup
+    if (builder.Environment.IsDevelopment())
+    {
+        opts.UseAmazonSqsTransportLocally()
+            .AutoProvision();
+    }
+    else
+    {
+        opts.UseAmazonSqsTransport();
+    }
+
+    // Route the incoming webhook payload to the SQS queue
+    // Make sure the queue name matches your Terraform definition exactly
+    opts.PublishMessage<ProcessWhatsAppMessage>()
+        .ToSqsQueue("chatbot-messages-queue");
+
+    opts.ListenToSqsQueue("chatbot-messages-queue");
 });
 
 builder.Services.AddHealthChecks();
+
+// Lambda Hosting (Automatically ignored when running locally)
+builder.Services.AddAWSLambdaHosting(LambdaEventSource.HttpApi);
+
 var app = builder.Build();
 
 // 4. Initialization Phase
@@ -48,8 +75,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-//app.UseHttpsRedirection();
 app.MapWolverineEndpoints();
-
 app.MapHealthChecks("/health");
+
 return await app.RunJasperFxCommands(args);

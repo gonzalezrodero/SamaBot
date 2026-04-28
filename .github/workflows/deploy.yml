@@ -1,27 +1,20 @@
-name: "CI/CD: Build API & Deploy Compute"
+name: "CI/CD: Build API & Deploy Serverless"
 
 on:
   push:
-    branches: [ main ]
+    branches: [ '**' ]
     paths:
       - 'src/**'
       - 'Dockerfile'
-      - 'infra/compute/**'
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'src/**'
-      - 'Dockerfile'
-      - 'infra/compute/**'
+      - 'infra/serverless/**'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
 env:
   AWS_REGION: eu-west-1
-  ECR_REPOSITORY: chatbot-api
-  ECS_CLUSTER: chatbot-cluster
-  ECS_SERVICE: chatbot-service
+  ECR_REPOSITORY: chatbot-api 
   ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_ARN }} 
-  TF_WORKING_DIR: 'infra/compute'
+  TF_WORKING_DIR: 'infra/serverless'
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
 
 permissions:
@@ -50,12 +43,10 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        if: github.event_name != 'pull_request'
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and Push Image
-        if: github.event_name != 'pull_request'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ steps.calver.outputs.tag }}
@@ -84,7 +75,8 @@ jobs:
   apply:
     name: "Terraform Apply"
     needs: build-and-plan
-    if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && github.event_name == 'push')
+    # Triggers on manual execution from UI OR any push to any branch
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: development
     
