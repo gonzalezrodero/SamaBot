@@ -57,12 +57,6 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Validate
-        run: |
-          terraform init -backend=false
-          terraform validate
-        working-directory: ${{ env.TF_WORKING_DIR }}
-
       - name: Terraform Init
         run: terraform init -backend-config=config/dev/config.remote
         working-directory: ${{ env.TF_WORKING_DIR }}
