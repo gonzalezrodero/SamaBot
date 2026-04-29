@@ -11,11 +11,11 @@ resource "aws_security_group" "db_sg" {
   vpc_id      = data.terraform_remote_state.network.outputs.vpc_id
 
   ingress {
-    description     = "PostgreSQL from ECS Tasks"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [data.terraform_remote_state.compute.outputs.ecs_sg_id]
+    description = "PostgreSQL Public Access for Lambdas"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
