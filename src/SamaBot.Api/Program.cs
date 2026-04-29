@@ -38,7 +38,16 @@ builder.Host.UseWolverine(opts =>
             TimeSpan.FromMinutes(1)
     );
 
-    opts.UseAmazonSqsTransport().AutoProvision();
+    var sqs = opts.UseAmazonSqsTransport();
+
+    if (builder.Environment.IsDevelopment())
+    {
+        sqs.AutoProvision();
+    }
+    else
+    {
+        sqs.SystemQueuesAreEnabled(false);
+    }
 
     opts.PublishMessage<ProcessWhatsAppMessage>().ToSqsQueue("chatbot-messages-queue");
     opts.ListenToSqsQueue("chatbot-messages-queue");

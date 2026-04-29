@@ -31,8 +31,12 @@ data "aws_iam_policy_document" "lambda_custom_permissions" {
 
   # Allow the API (Lambda 1) to send messages to the queue
   statement {
-    effect    = "Allow"
-    actions   = ["sqs:SendMessage"]
+    effect = "Allow"
+    actions = [
+      "sqs:SendMessage",
+      "sqs:GetQueueUrl",
+      "sqs:GetQueueAttributes"
+    ]
     resources = [aws_sqs_queue.bot_queue.arn]
   }
 
