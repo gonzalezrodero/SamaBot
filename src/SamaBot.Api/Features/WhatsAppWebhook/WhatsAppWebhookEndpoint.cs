@@ -8,21 +8,24 @@ namespace SamaBot.Api.Features.WhatsAppWebhook;
 
 public class WhatsAppWebhookEndpoint
 {
-    [WolverineGet("/api/whatsapp/webhook")]
-    public string VerifyChallenge(
+[WolverineGet("/api/whatsapp/webhook")]
+    public IResult VerifyChallenge(
         [FromQuery(Name = "hub.mode")] string? mode,
         [FromQuery(Name = "hub.verify_token")] string? token,
         [FromQuery(Name = "hub.challenge")] string? challenge,
-        IOptions<WhatsAppOptions> options)
+        IOptions<WhatsAppOptions> options,
+        ILogger<WhatsAppWebhookEndpoint> logger)
     {
         var verifyToken = options.Value.VerifyToken;
 
-        if (mode == "subscribe" && token == verifyToken && challenge != null)
+        if (mode == "subscribe" && token == verifyToken && !string.IsNullOrEmpty(challenge))
         {
-            return challenge;
+            return Results.Content(challenge, "text/plain");
         }
 
-        throw new BadHttpRequestException("Invalid verification token.", 403);
+        logger.LogWarning("Webhook verification failed. Expected Token: '{Expected}', Received Token: '{Received}'", verifyToken, token);
+
+        return Results.StatusCode(403);
     }
 
     [WolverinePost("/api/whatsapp/webhook")]
