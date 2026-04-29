@@ -43,6 +43,7 @@ data "aws_iam_policy_document" "lambda_custom_permissions" {
       "secretsmanager:GetSecretValue",
       "ssm:GetParameters",
       "ssm:GetParameter",
+      "ssm:GetParametersByPath",
       "kms:Decrypt"
     ]
     resources = [
