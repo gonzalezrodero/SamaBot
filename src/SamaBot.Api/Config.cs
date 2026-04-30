@@ -108,11 +108,15 @@ public static class Config
             });
 
             sqs.SystemQueuesAreEnabled(false);
-            opts.PublishMessage<ProcessWhatsAppMessage>().ToSqsQueue("chatbot-messages-queue").SendInline();
+            opts.PublishMessage<ProcessWhatsAppMessage>()
+                .ToSqsQueue("chatbot-messages-queue")
+                .SendInline()
+                .UseInterop(queue => new RawJsonSqsMapper());
 
             if (config.GetValue<bool>("EnableSqsListener"))
             {
-                opts.ListenToSqsQueue("chatbot-messages-queue");
+                opts.ListenToSqsQueue("chatbot-messages-queue")
+                    .ReceiveRawJsonMessage(typeof(ProcessWhatsAppMessage));
             }
         });
     }
