@@ -47,20 +47,21 @@ public class SqsLambdaHandler
         builder.Services.AddDatabase(conn);
         builder.Services.AddAi(builder.Configuration);
         builder.Services.AddFeatures(builder.Configuration);
-        builder.Services.AddWolverine();
+        builder.Services.AddWolverine(builder.Configuration);
 
         var host = builder.Build();
         host.Start();
         return host.Services;
     }
 
-    // Firma estricta de 2 parámetros para SQS
     public async Task FunctionHandler(SQSEvent sqsEvent, ILambdaContext _)
     {
         logger.LogWarning(">>> [WORKER] Batch recibido con {Count} mensajes.", sqsEvent.Records.Count);
 
         foreach (var record in sqsEvent.Records)
         {
+            logger.LogWarning(">>> [WORKER] RAW BODY DE SQS: {Body}", record.Body);
+
             var message = JsonSerializer.Deserialize<ProcessWhatsAppMessage>(record.Body, jsonOptions);
 
             if (message != null)

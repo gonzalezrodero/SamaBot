@@ -88,7 +88,7 @@ public static class Config
         return logging;
     }
 
-    public static IServiceCollection AddWolverine(this IServiceCollection services)
+    public static IServiceCollection AddWolverine(this IServiceCollection services, IConfiguration config)
     {
         return services.AddWolverine(opts =>
         {
@@ -108,8 +108,12 @@ public static class Config
             });
 
             sqs.SystemQueuesAreEnabled(false);
-            opts.ListenToSqsQueue("chatbot-messages-queue");
             opts.PublishMessage<ProcessWhatsAppMessage>().ToSqsQueue("chatbot-messages-queue");
+
+            if (config.GetValue<bool>("EnableSqsListener"))
+            {
+                opts.ListenToSqsQueue("chatbot-messages-queue");
+            }
         });
     }
 

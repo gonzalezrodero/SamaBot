@@ -55,6 +55,8 @@ public class IntegrationAppFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("ConnectionStrings__Marten", _postgres.GetConnectionString());
         Environment.SetEnvironmentVariable("BedrockSettings__ModelId", "dummy-model");
 
+        Environment.SetEnvironmentVariable("EnableSqsListener", "true");
+
         Environment.SetEnvironmentVariable("AWS_REGION", "eu-west-1");
         Environment.SetEnvironmentVariable("AWS_ACCESS_KEY_ID", "dummy");
         Environment.SetEnvironmentVariable("AWS_SECRET_ACCESS_KEY", "dummy");

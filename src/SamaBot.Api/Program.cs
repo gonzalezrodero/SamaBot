@@ -19,7 +19,7 @@ builder.Services.AddAi(builder.Configuration);
 builder.Services.AddFeatures(builder.Configuration);
 
 // Wolverine (ahora desde builder.Services)
-builder.Services.AddWolverine();
+builder.Services.AddWolverine(builder.Configuration);
 
 builder.Services.AddOpenApi();
 builder.Services.AddWolverineHttp();
