@@ -49,7 +49,7 @@ public class WhatsAppWebhookEndpoint
         if (message != null)
         {
             // Log successful extraction
-            logger.LogInformation("Message extracted successfully. Text: {Text}", message.MessageText);
+            logger.LogInformation("Message extracted successfully. Text: {Text}", message.Text);
 
             await bus.PublishAsync(message);
 
