@@ -48,6 +48,7 @@ public class SqsLambdaHandler
         builder.Services.AddWolverine(builder.Configuration);
 
         var host = builder.Build();
+        host.Start();
         return host.Services;
     }
 
