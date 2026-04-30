@@ -30,19 +30,35 @@ public class WhatsAppWebhookEndpoint
 
     [WolverinePost("/api/whatsapp/webhook")]
     public async Task<IResult> ReceiveMessage(
-        HttpRequest request,
-        IWhatsAppPayloadProcessor processor,
-        IMessageBus bus)
+            HttpRequest request,
+            IWhatsAppPayloadProcessor processor,
+            IMessageBus bus,
+            ILogger<WhatsAppWebhookEndpoint> logger)
     {
+        // Temporarily commented for testing
         /*if (!await processor.IsSignatureValidAsync(request))
         {
             return Results.Unauthorized();
         }*/
 
+        // Log to verify the endpoint is hit
+        logger.LogInformation("Webhook POST endpoint was successfully hit.");
+
         var message = await processor.ExtractMessageAsync(request);
+
         if (message != null)
         {
+            // Log successful extraction
+            logger.LogInformation("Message extracted successfully. Text: {Text}", message.MessageText);
+
             await bus.PublishAsync(message);
+
+            logger.LogInformation("Message successfully published to SQS bus.");
+        }
+        else
+        {
+            // Log the failure to understand why it's skipping SQS
+            logger.LogWarning("Extraction returned NULL. The JSON parsing failed or the request body was empty.");
         }
 
         return Results.Ok();
