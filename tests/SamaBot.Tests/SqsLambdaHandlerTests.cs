@@ -2,7 +2,6 @@
 using Amazon.Lambda.SQSEvents;
 using AwesomeAssertions;
 using Moq;
-using SamaBot.Api;
 using Wolverine;
 
 namespace SamaBot.Tests;
@@ -11,12 +10,7 @@ public class SqsLambdaHandlerTests
 {
     private readonly Mock<IMessageBus> busMock = new();
     private readonly Mock<ILambdaContext> contextMock = new();
-    private readonly SqsLambdaHandler handler;
-
-    public SqsLambdaHandlerTests()
-    {
-        handler = new SqsLambdaHandler(busMock.Object);
-    }
+    private readonly SqsLambdaHandler handler = new();
 
     [Fact]
     public async Task FunctionHandler_ShouldInvokeBus_ForEachSqsRecord()
