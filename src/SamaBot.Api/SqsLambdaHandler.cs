@@ -5,6 +5,8 @@ using SamaBot.Api.Features.WhatsAppWebhook;
 using System.Text.Json;
 using Wolverine;
 
+[assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
+
 namespace SamaBot.Api;
 
 public class SqsLambdaHandler
