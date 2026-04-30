@@ -38,7 +38,7 @@ public class SqsLambdaHandlerTests
         var lambdaContext = mocker.GetMock<ILambdaContext>().Object;
 
         // Act
-        await handler.FunctionHandler(sqsEvent, lambdaContext, handler.GetOptions());
+        await handler.FunctionHandler(sqsEvent, lambdaContext);
 
         // Assert
         mocker.GetMock<IMessageBus>()
@@ -58,7 +58,7 @@ public class SqsLambdaHandlerTests
         var sqsEvent = new SQSEvent { Records = [] };
 
         // Act
-        await handler.FunctionHandler(sqsEvent, contextMock.Object, handler.GetOptions());
+        await handler.FunctionHandler(sqsEvent, contextMock.Object);
 
         // Assert
         busMock.Verify(x => x.InvokeAsync(It.IsAny<object>(), default, null), Times.Never);
