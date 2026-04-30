@@ -19,7 +19,6 @@ public class SqsLambdaHandler
     private readonly ILogger<SqsLambdaHandler> logger;
     private readonly JsonSerializerOptions jsonOptions;
 
-    // Constructor sin parámetros requerido por AWS Lambda
     public SqsLambdaHandler()
     {
         bus = services.Value.GetRequiredService<IMessageBus>();
@@ -27,7 +26,6 @@ public class SqsLambdaHandler
         jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
     }
 
-    // Constructor para inyectar dependencias en Unit Tests (ideal para AutoMocker)
     public SqsLambdaHandler(IMessageBus bus, ILogger<SqsLambdaHandler> logger)
     {
         this.bus = bus;

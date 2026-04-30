@@ -92,14 +92,7 @@ public static class Config
     {
         return services.AddWolverine(opts =>
         {
-            var isLocal = config.GetValue<bool>("EnableSqsListener");
-
-            if (!isLocal)
-            {
-                opts.LocalQueue("default").ProcessInline();
-            }
-
-            opts.Discovery.IncludeAssembly(typeof(Program).Assembly);
+           opts.Discovery.IncludeAssembly(typeof(Program).Assembly);
 
             opts.Policies.AutoApplyTransactions();
             opts.Policies.OnException<ThrottlingException>()
@@ -107,22 +100,25 @@ public static class Config
 
             var sqsUrl = Environment.GetEnvironmentVariable("AWS_ENDPOINT_URL_SQS");
 
-            var sqs = opts.UseAmazonSqsTransport(config =>
+            var sqs = opts.UseAmazonSqsTransport(sqsConfig =>
             {
                 if (!string.IsNullOrEmpty(sqsUrl))
                 {
-                    config.ServiceURL = sqsUrl;
-                    config.AuthenticationRegion = "us-east-1";
+                    sqsConfig.ServiceURL = sqsUrl;
+                    sqsConfig.AuthenticationRegion = "us-west-1";
                 }
             });
 
             sqs.SystemQueuesAreEnabled(false);
+
+            // Configuración de salida (Webhook -> SQS)
             opts.PublishMessage<ProcessWhatsAppMessage>()
                 .ToSqsQueue("chatbot-messages-queue")
                 .SendInline()
                 .UseInterop(queue => new RawJsonSqsMapper());
 
-            if (isLocal)
+            // Configuración de entrada (Solo para tests locales/Alba)
+            if (config.GetValue<bool>("EnableSqsListener"))
             {
                 opts.ListenToSqsQueue("chatbot-messages-queue")
                     .ReceiveRawJsonMessage(typeof(ProcessWhatsAppMessage));

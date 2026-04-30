@@ -1,14 +1,16 @@
 using Marten;
 using SamaBot.Api.Core.Events;
 using SamaBot.Api.Features.Tenancy;
+using Wolverine;
 
 namespace SamaBot.Api.Features.WhatsAppWebhook;
 
 public static class ProcessWhatsAppMessageHandler
 {
-    public static async Task<MessageReceived?> Handle(
+    public static async Task Handle(
         ProcessWhatsAppMessage command,
-        IDocumentStore store,
+        IDocumentStore store, 
+        IMessageBus bus,
         CancellationToken ct)
     {
         // 1. Global search (non-tenant) to find who owns this phone ID
@@ -18,13 +20,13 @@ public static class ProcessWhatsAppMessageHandler
 
         if (tenant == null)
         {
-            return null;
+            return;
         }
 
         using var session = store.LightweightSession(tenant.Id);
         if (await session.Query<ProcessedMessage>().AnyAsync(x => x.Id == command.MessageId, ct))
         {
-            return null;
+            return;
         }
 
         var receivedEvent = new MessageReceived(
@@ -39,6 +41,6 @@ public static class ProcessWhatsAppMessageHandler
         session.Events.Append(command.PhoneNumber, receivedEvent);
         await session.SaveChangesAsync(ct);
 
-        return receivedEvent;
+        await bus.InvokeAsync(receivedEvent, ct);
     }
 }
