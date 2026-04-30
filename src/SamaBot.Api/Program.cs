@@ -1,6 +1,7 @@
 ﻿
 using Amazon.BedrockRuntime.Model;
 using JasperFx;
+using JasperFx.CodeGeneration;
 using SamaBot.Api;
 using SamaBot.Api.Common.Extensions;
 using SamaBot.Api.Features.WhatsAppWebhook; // Added to access ProcessWhatsAppMessage
@@ -40,8 +41,9 @@ builder.Host.UseWolverine(opts =>
 
     var sqs = opts.UseAmazonSqsTransport();
 
-    if (builder.Environment.IsDevelopment())
+    if (builder.Environment.IsEnvironment("Testing"))
     {
+        opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
         sqs.AutoProvision();
     }
     else

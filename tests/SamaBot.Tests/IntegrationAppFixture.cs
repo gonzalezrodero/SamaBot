@@ -43,6 +43,7 @@ public class IntegrationAppFixture : IAsyncLifetime
         var sqsPort = _sqsContainer.GetMappedPublicPort(9324);
         var sqsServiceUrl = $"http://localhost:{sqsPort}";
 
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
         Environment.SetEnvironmentVariable("ConnectionStrings__Marten", _postgres.GetConnectionString());
         Environment.SetEnvironmentVariable("BedrockSettings__ModelId", "dummy-model");
 
