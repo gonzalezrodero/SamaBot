@@ -12,24 +12,14 @@ using Wolverine.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Clear default providers to avoid duplicates or weird formatting in AWS
 builder.Logging.ClearProviders();
-
-// Configure JSON logging (ideal for CloudWatch)
 builder.Logging.AddJsonConsole(options =>
 {
     options.IncludeScopes = false;
     options.TimestampFormat = "HH:mm:ss ";
-    options.JsonWriterOptions = new System.Text.Json.JsonWriterOptions
-    {
-        Indented = false // Keep it false so each log is a single line in CloudWatch
-    };
+    options.JsonWriterOptions = new System.Text.Json.JsonWriterOptions { Indented = false };
 });
-
-// Set the global minimum level
 builder.Logging.SetMinimumLevel(LogLevel.Information);
-
-// Filter out .NET "noise" to avoid cluttering CloudWatch and saving costs
 builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
 builder.Logging.AddFilter("System", LogLevel.Warning);
 
@@ -65,6 +55,7 @@ builder.Host.UseWolverine(opts =>
     if (builder.Environment.IsEnvironment("Testing"))
     {
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
+        opts.ListenToSqsQueue("chatbot-messages-queue");
         sqs.AutoProvision();
     }
     else
@@ -73,7 +64,6 @@ builder.Host.UseWolverine(opts =>
     }
 
     opts.PublishMessage<ProcessWhatsAppMessage>().ToSqsQueue("chatbot-messages-queue");
-    opts.ListenToSqsQueue("chatbot-messages-queue");
 });
 
 builder.Services.AddHealthChecks();
