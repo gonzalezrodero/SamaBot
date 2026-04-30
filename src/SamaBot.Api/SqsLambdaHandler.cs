@@ -1,10 +1,11 @@
 ﻿using Amazon.Lambda.Core;
 using Amazon.Lambda.SQSEvents;
-using SamaBot.Api;
 using SamaBot.Api.Common.Extensions;
 using SamaBot.Api.Features.WhatsAppWebhook;
 using System.Text.Json;
 using Wolverine;
+
+namespace SamaBot.Api;
 
 public class SqsLambdaHandler
 {
