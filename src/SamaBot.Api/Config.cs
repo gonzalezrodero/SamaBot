@@ -92,6 +92,15 @@ public static class Config
     {
         return services.AddWolverine(opts =>
         {
+            var isLocal = config.GetValue<bool>("EnableSqsListener");
+
+            if (!isLocal)
+            {
+                opts.LocalQueue("default").ProcessInline();
+            }
+
+            opts.Discovery.IncludeAssembly(typeof(Program).Assembly);
+
             opts.Policies.AutoApplyTransactions();
             opts.Policies.OnException<ThrottlingException>()
                 .RetryWithCooldown(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(30));
@@ -113,7 +122,7 @@ public static class Config
                 .SendInline()
                 .UseInterop(queue => new RawJsonSqsMapper());
 
-            if (config.GetValue<bool>("EnableSqsListener"))
+            if (isLocal)
             {
                 opts.ListenToSqsQueue("chatbot-messages-queue")
                     .ReceiveRawJsonMessage(typeof(ProcessWhatsAppMessage));
