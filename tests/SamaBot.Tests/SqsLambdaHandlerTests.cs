@@ -2,10 +2,14 @@
 using Amazon.Lambda.SQSEvents;
 using AwesomeAssertions;
 using Moq;
+using Moq.AutoMock;
+using SamaBot.Api.Features.WhatsAppWebhook;
+using System.Text.Json;
 using Wolverine;
 
 namespace SamaBot.Tests;
 
+[Collection("Integration")]
 public class SqsLambdaHandlerTests
 {
     private readonly Mock<IMessageBus> busMock = new();
@@ -16,25 +20,34 @@ public class SqsLambdaHandlerTests
     public async Task FunctionHandler_ShouldInvokeBus_ForEachSqsRecord()
     {
         // Arrange
-        var body1 = "{ \"message\": \"test 1\" }";
-        var body2 = "{ \"message\": \"test 2\" }";
+        var mocker = new AutoMocker();
+        var handler = mocker.CreateInstance<SqsLambdaHandler>();
+
+        var expectedMessage = new ProcessWhatsAppMessage("123", "34600000000", "34600000000", "Text", DateTimeOffset.UtcNow, "Payload");
+        var jsonBody = JsonSerializer.Serialize(expectedMessage);
 
         var sqsEvent = new SQSEvent
         {
             Records =
             [
-                new() { Body = body1 },
-                new() { Body = body2 }
+                new() { Body = jsonBody }
             ]
         };
 
+        var lambdaContext = mocker.GetMock<ILambdaContext>().Object;
+
         // Act
-        await handler.FunctionHandler(sqsEvent, contextMock.Object);
+        await handler.FunctionHandler(sqsEvent, lambdaContext, handler.GetOptions());
 
         // Assert
-        busMock.Verify(x => x.InvokeAsync(body1, default, null), Times.Once);
-        busMock.Verify(x => x.InvokeAsync(body2, default, null), Times.Once);
-        busMock.Invocations.Count.Should().Be(2);
+        mocker.GetMock<IMessageBus>()
+            .Verify(b => b.InvokeAsync(
+                It.Is<ProcessWhatsAppMessage>(m =>
+                    m.MessageId == expectedMessage.MessageId &&
+                    m.Text == expectedMessage.Text),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<TimeSpan?>()),
+            Times.Once);
     }
 
     [Fact]
@@ -44,7 +57,7 @@ public class SqsLambdaHandlerTests
         var sqsEvent = new SQSEvent { Records = [] };
 
         // Act
-        await handler.FunctionHandler(sqsEvent, contextMock.Object);
+        await handler.FunctionHandler(sqsEvent, contextMock.Object, handler.GetOptions());
 
         // Assert
         busMock.Verify(x => x.InvokeAsync(It.IsAny<object>(), default, null), Times.Never);

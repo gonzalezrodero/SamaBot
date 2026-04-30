@@ -40,23 +40,25 @@ public class IntegrationAppFixture : IAsyncLifetime
     {
         await Task.WhenAll(_postgres.StartAsync(), _sqsContainer.StartAsync());
 
+        await Task.Delay(2000);
+
         var sqsPort = _sqsContainer.GetMappedPublicPort(9324);
-        var sqsServiceUrl = $"http://localhost:{sqsPort}";
+        var sqsServiceUrl = $"http://127.0.0.1:{sqsPort}";
+
+        var sqsConfig = new Amazon.SQS.AmazonSQSConfig { ServiceURL = sqsServiceUrl, AuthenticationRegion = "us-east-1" };
+        using var sqsClient = new Amazon.SQS.AmazonSQSClient("dummy", "dummy", sqsConfig);
+
+        await sqsClient.CreateQueueAsync("chatbot-messages-queue");
+        await sqsClient.CreateQueueAsync("wolverine-dead-letter-queue");
 
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
         Environment.SetEnvironmentVariable("ConnectionStrings__Marten", _postgres.GetConnectionString());
         Environment.SetEnvironmentVariable("BedrockSettings__ModelId", "dummy-model");
 
-        // --- AWS GLOBAL OVERRIDES FOR TESTCONTAINERS ---
         Environment.SetEnvironmentVariable("AWS_REGION", "eu-west-1");
         Environment.SetEnvironmentVariable("AWS_ACCESS_KEY_ID", "dummy");
         Environment.SetEnvironmentVariable("AWS_SECRET_ACCESS_KEY", "dummy");
-
-        // 1. Clear local session token: If you have AWS CLI (SSO) on your PC, the SDK tries to use it.
-        // We empty it so it doesn't send invalid tokens to ElasticMQ.
         Environment.SetEnvironmentVariable("AWS_SESSION_TOKEN", "");
-
-        // 2. THE MAGIC: We redirect all AWS traffic at the SDK level to the Docker container
         Environment.SetEnvironmentVariable("AWS_ENDPOINT_URL", sqsServiceUrl);
         Environment.SetEnvironmentVariable("AWS_ENDPOINT_URL_SQS", sqsServiceUrl);
 

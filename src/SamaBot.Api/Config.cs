@@ -72,7 +72,7 @@ public static class Config
         return services;
     }
 
-    public static ILoggingBuilder AddSamaBotLogging(this ILoggingBuilder logging)
+    public static ILoggingBuilder AddLogging(this ILoggingBuilder logging)
     {
         logging.ClearProviders();
         logging.AddJsonConsole(options =>
@@ -84,8 +84,7 @@ public static class Config
         return logging;
     }
 
-    // Ahora acepta IServiceCollection para ser compatible con WebApplicationBuilder y HostApplicationBuilder
-    public static IServiceCollection AddWolverine(this IServiceCollection services, IHostEnvironment env)
+    public static IServiceCollection AddWolverine(this IServiceCollection services)
     {
         return services.AddWolverine(opts =>
         {
@@ -93,18 +92,19 @@ public static class Config
             opts.Policies.OnException<ThrottlingException>()
                 .RetryWithCooldown(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(30));
 
-            var sqs = opts.UseAmazonSqsTransport();
+            var sqsUrl = Environment.GetEnvironmentVariable("AWS_ENDPOINT_URL_SQS");
 
-            if (env.IsEnvironment("Testing"))
+            var sqs = opts.UseAmazonSqsTransport(config =>
             {
-                opts.ListenToSqsQueue("chatbot-messages-queue");
-                sqs.AutoProvision();
-            }
-            else
-            {
-                sqs.SystemQueuesAreEnabled(false);
-            }
+                if (!string.IsNullOrEmpty(sqsUrl))
+                {
+                    config.ServiceURL = sqsUrl;
+                    config.AuthenticationRegion = "us-east-1";
+                }
+            });
 
+            sqs.SystemQueuesAreEnabled(false);
+            opts.ListenToSqsQueue("chatbot-messages-queue");
             opts.PublishMessage<ProcessWhatsAppMessage>().ToSqsQueue("chatbot-messages-queue");
         });
     }
@@ -113,9 +113,25 @@ public static class Config
     {
         using var conn = new NpgsqlConnection(connectionString);
         conn.Open();
+
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"CREATE EXTENSION IF NOT EXISTS vector;";
+
+        cmd.CommandText = @"
+            CREATE EXTENSION IF NOT EXISTS vector;
+
+            CREATE OR REPLACE FUNCTION public.extract_embedding(data jsonb) 
+            RETURNS vector IMMUTABLE PARALLEL SAFE AS $$
+            BEGIN
+                -- Ensure 'Embedding' matches your C# property name exactly
+                RETURN CAST(data ->> 'Embedding' AS vector(512));
+            EXCEPTION WHEN OTHERS THEN
+                -- Fallback to a zero vector to avoid crashing the index
+                RETURN array_fill(0, ARRAY[512])::vector;
+            END;
+            $$ LANGUAGE plpgsql;";
+
         cmd.ExecuteNonQuery();
+
         return app;
     }
 }

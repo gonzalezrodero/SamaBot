@@ -7,7 +7,7 @@ using Wolverine.Http;
 var builder = WebApplication.CreateBuilder(args);
 
 // Logs
-builder.Logging.AddSamaBotLogging();
+builder.Logging.AddLogging();
 
 // AWS Config
 builder.AddAwsSecureConfiguration();
@@ -19,7 +19,7 @@ builder.Services.AddAi(builder.Configuration);
 builder.Services.AddFeatures(builder.Configuration);
 
 // Wolverine (ahora desde builder.Services)
-builder.Services.AddWolverine(builder.Environment);
+builder.Services.AddWolverine();
 
 builder.Services.AddOpenApi();
 builder.Services.AddWolverineHttp();
