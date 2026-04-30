@@ -108,7 +108,7 @@ public static class Config
             });
 
             sqs.SystemQueuesAreEnabled(false);
-            opts.PublishMessage<ProcessWhatsAppMessage>().ToSqsQueue("chatbot-messages-queue");
+            opts.PublishMessage<ProcessWhatsAppMessage>().ToSqsQueue("chatbot-messages-queue").SendInline();
 
             if (config.GetValue<bool>("EnableSqsListener"))
             {
