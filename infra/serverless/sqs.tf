@@ -1,5 +1,5 @@
 resource "aws_sqs_queue" "bot_dlq" {
-  name = "${var.project_name}-messages-dlq"
+  name = "wolverine-dead-letter-queue"
 }
 
 resource "aws_sqs_queue" "bot_queue" {

@@ -37,7 +37,10 @@ data "aws_iam_policy_document" "lambda_custom_permissions" {
       "sqs:GetQueueUrl",
       "sqs:GetQueueAttributes"
     ]
-    resources = [aws_sqs_queue.bot_queue.arn]
+    resources = [
+      aws_sqs_queue.bot_queue.arn,
+      aws_sqs_queue.bot_dlq.arn
+    ]
   }
 
   # Allow reading database credentials and WhatsApp tokens
