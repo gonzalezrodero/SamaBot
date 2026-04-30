@@ -40,6 +40,7 @@ public static class Config
         services.AddNpgsqlDataSource(connectionString);
         services.CritterStackDefaults(opts =>
         {
+            opts.ApplicationAssembly = typeof(Config).Assembly;
             opts.Development.GeneratedCodeMode = TypeLoadMode.Auto;
             opts.Production.GeneratedCodeMode = TypeLoadMode.Auto;
         });
