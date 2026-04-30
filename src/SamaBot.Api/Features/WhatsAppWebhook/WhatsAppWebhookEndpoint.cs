@@ -35,30 +35,26 @@ public class WhatsAppWebhookEndpoint
             IMessageBus bus,
             ILogger<WhatsAppWebhookEndpoint> logger)
     {
-        // Temporarily commented for testing
-        /*if (!await processor.IsSignatureValidAsync(request))
-        {
-            return Results.Unauthorized();
-        }*/
+        // Forzamos la lectura del body aquí mismo para verlo en CloudWatch
+        request.EnableBuffering();
+        request.Body.Position = 0;
+        using var reader = new StreamReader(request.Body, System.Text.Encoding.UTF8, leaveOpen: true);
+        var rawBody = await reader.ReadToEndAsync();
+        request.Body.Position = 0;
 
-        // Log to verify the endpoint is hit
-        logger.LogInformation("Webhook POST endpoint was successfully hit.");
+        logger.LogWarning(">>> [DEBUG] RAW BODY RECIBIDO: {Body}", rawBody);
 
         var message = await processor.ExtractMessageAsync(request);
 
         if (message != null)
         {
-            // Log successful extraction
-            logger.LogInformation("Message extracted successfully. Text: {Text}", message.Text);
-
+            logger.LogWarning(">>> [DEBUG] Message extracted successfully.");
             await bus.PublishAsync(message);
-
-            logger.LogInformation("Message successfully published to SQS bus.");
+            logger.LogWarning(">>> [DEBUG] Message successfully published to SQS bus.");
         }
         else
         {
-            // Log the failure to understand why it's skipping SQS
-            logger.LogWarning("Extraction returned NULL. The JSON parsing failed or the request body was empty.");
+            logger.LogWarning(">>> [DEBUG] Extraction returned NULL. El parseo falló.");
         }
 
         return Results.Ok();
