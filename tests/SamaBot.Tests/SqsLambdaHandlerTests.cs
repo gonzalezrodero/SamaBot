@@ -3,6 +3,7 @@ using Amazon.Lambda.SQSEvents;
 using AwesomeAssertions;
 using Moq;
 using Moq.AutoMock;
+using SamaBot.Api;
 using SamaBot.Api.Features.WhatsAppWebhook;
 using System.Text.Json;
 using Wolverine;
