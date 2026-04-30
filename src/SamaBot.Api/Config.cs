@@ -38,20 +38,21 @@ public static class Config
     public static IServiceCollection AddDatabase(this IServiceCollection services, string connectionString)
     {
         services.AddNpgsqlDataSource(connectionString);
-        services.CritterStackDefaults(opts =>
-        {
-            opts.ApplicationAssembly = typeof(Config).Assembly;
-            opts.Development.GeneratedCodeMode = TypeLoadMode.Auto;
-            opts.Production.GeneratedCodeMode = TypeLoadMode.Auto;
-        });
 
         services.AddMarten(opts =>
         {
+#pragma warning disable CS0618
+            opts.ApplicationAssembly = typeof(Config).Assembly;
+            opts.GeneratedCodeMode = TypeLoadMode.Auto;
+#pragma warning restore CS0618
+
             opts.Connection(connectionString);
             opts.Events.StreamIdentity = StreamIdentity.AsString;
             opts.Events.TenancyStyle = TenancyStyle.Conjoined;
+
             opts.Storage.Add(new HnswIndexCustomizer());
             opts.Projections.Add<ProcessedMessageProjection>(ProjectionLifecycle.Inline);
+
             opts.Schema.For<TenantProfile>().SingleTenanted();
             opts.Schema.For<ProcessedMessage>().MultiTenanted();
             opts.Schema.For<DocumentChunk>().MultiTenanted();
@@ -89,6 +90,9 @@ public static class Config
     {
         return services.AddWolverine(opts =>
         {
+            opts.ApplicationAssembly = typeof(Config).Assembly;
+            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+
             opts.Policies.AutoApplyTransactions();
             opts.Policies.OnException<ThrottlingException>()
                 .RetryWithCooldown(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(30));
