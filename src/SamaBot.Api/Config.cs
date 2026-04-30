@@ -39,13 +39,15 @@ public static class Config
     {
         services.AddNpgsqlDataSource(connectionString);
 
+        // Vuelve a usar la API moderna sin miedo
+        services.CritterStackDefaults(opts =>
+        {
+            opts.Development.GeneratedCodeMode = TypeLoadMode.Auto;
+            opts.Production.GeneratedCodeMode = TypeLoadMode.Auto;
+        });
+
         services.AddMarten(opts =>
         {
-#pragma warning disable CS0618
-            opts.ApplicationAssembly = typeof(Config).Assembly;
-            opts.GeneratedCodeMode = TypeLoadMode.Auto;
-#pragma warning restore CS0618
-
             opts.Connection(connectionString);
             opts.Events.StreamIdentity = StreamIdentity.AsString;
             opts.Events.TenancyStyle = TenancyStyle.Conjoined;
@@ -90,11 +92,6 @@ public static class Config
     {
         return services.AddWolverine(opts =>
         {
-#pragma warning disable CS0618
-            opts.ApplicationAssembly = typeof(Config).Assembly;
-            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-#pragma warning restore CS0618
-
             opts.Policies.AutoApplyTransactions();
             opts.Policies.OnException<ThrottlingException>()
                 .RetryWithCooldown(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(30));
