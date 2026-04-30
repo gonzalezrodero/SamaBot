@@ -90,8 +90,10 @@ public static class Config
     {
         return services.AddWolverine(opts =>
         {
+#pragma warning disable CS0618
             opts.ApplicationAssembly = typeof(Config).Assembly;
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+#pragma warning restore CS0618
 
             opts.Policies.AutoApplyTransactions();
             opts.Policies.OnException<ThrottlingException>()
