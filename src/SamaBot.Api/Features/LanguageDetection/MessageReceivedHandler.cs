@@ -1,17 +1,19 @@
 using Marten;
 using SamaBot.Api.Core.Events;
+using Wolverine;
 
 namespace SamaBot.Api.Features.LanguageDetection;
 
 public static class MessageReceivedHandler
 {
-    public static async Task<MessageAnalyzed> Handle(
+    public static async Task Handle(
         MessageReceived @event,
         IDocumentStore store,
         ILanguageDetector languageDetector,
-        CancellationToken cancellationToken)
+        IMessageBus bus,
+        CancellationToken ct)
     {
-        var languageCode = await languageDetector.DetectLanguageAsync(@event.Text, cancellationToken);
+        var languageCode = await languageDetector.DetectLanguageAsync(@event.Text, ct);
 
         var analyzedEvent = new MessageAnalyzed(
             MessageId: @event.MessageId,
@@ -25,8 +27,8 @@ public static class MessageReceivedHandler
         using var session = store.LightweightSession(@event.TenantId);
 
         session.Events.Append(@event.PhoneNumber, analyzedEvent);
-        await session.SaveChangesAsync(cancellationToken);
+        await session.SaveChangesAsync(ct);
 
-        return analyzedEvent;
+        await bus.InvokeAsync(analyzedEvent, ct);
     }
 }

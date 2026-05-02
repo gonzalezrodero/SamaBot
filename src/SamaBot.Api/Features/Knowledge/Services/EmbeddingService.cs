@@ -13,7 +13,6 @@ public class EmbeddingService(IAmazonBedrockRuntime client) : IEmbeddingService
 {
     private static readonly JsonSerializerOptions options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    // Amazon Titan Text Embeddings V2 is the standard for RAG in AWS
     private const string TitanEmbeddingsModelId = "amazon.titan-embed-text-v2:0";
 
     public async Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken ct = default)

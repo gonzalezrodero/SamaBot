@@ -25,24 +25,31 @@ public class WhatsAppWebhookEndpoint
 
         logger.LogWarning("Webhook verification failed. Expected Token: '{Expected}', Received Token: '{Received}'", verifyToken, token);
 
-        return Results.StatusCode(403);
+        return Results.Forbid();
     }
 
     [WolverinePost("/api/whatsapp/webhook")]
     public async Task<IResult> ReceiveMessage(
         HttpRequest request,
         IWhatsAppPayloadProcessor processor,
-        IMessageBus bus)
+        IMessageBus bus,
+        ILogger<WhatsAppWebhookEndpoint> logger)
     {
         if (!await processor.IsSignatureValidAsync(request))
         {
+            logger.LogWarning("Invalid WhatsApp signature.");
             return Results.Unauthorized();
         }
 
         var message = await processor.ExtractMessageAsync(request);
+
         if (message != null)
         {
             await bus.PublishAsync(message);
+        }
+        else
+        {
+            logger.LogDebug("Received Payload does not contain a processable message.");
         }
 
         return Results.Ok();

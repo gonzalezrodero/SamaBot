@@ -2,6 +2,7 @@
 using SamaBot.Api.Core.Events;
 using SamaBot.Api.Features.Knowledge.Services;
 using System.Text;
+using Wolverine;
 
 namespace SamaBot.Api.Features.Chat;
 
@@ -24,11 +25,12 @@ public static class MessageAnalyzedHandler
         </context>
         """;
 
-    public static async Task<ReplyGenerated> Handle(
+    public static async Task Handle(
                 MessageAnalyzed @event,
                 IDocumentStore store,
                 IKnowledgeBaseService knowledgeBase,
                 IChatService chatService,
+                IMessageBus bus,
                 CancellationToken ct)
     {
         using var session = store.LightweightSession(@event.TenantId);
@@ -62,7 +64,7 @@ public static class MessageAnalyzedHandler
         session.Events.Append(@event.PhoneNumber, replyEvent);
         await session.SaveChangesAsync(ct);
 
-        return replyEvent;
+        await bus.InvokeAsync(replyEvent, ct);
     }
 
     private static async Task<List<ChatMessage>> ExtractChatHistory(string phoneNumber, IDocumentSession session, CancellationToken ct)

@@ -1,22 +1,84 @@
 ﻿using Amazon.Lambda.Core;
 using Amazon.Lambda.SQSEvents;
+using SamaBot.Api.Common.Extensions;
+using SamaBot.Api.Features.WhatsAppWebhook;
+using System.Text.Json;
 using Wolverine;
+using static Amazon.Lambda.SQSEvents.SQSBatchResponse;
 
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
 
 namespace SamaBot.Api;
 
-// The SqsLambdaHandler is the entry point for the Worker
-public class SqsLambdaHandler(IMessageBus bus)
+public class SqsLambdaHandler
 {
-    // This method is triggered by AWS SQS events
-    public async Task FunctionHandler(SQSEvent sqsEvent, ILambdaContext _)
+    private static readonly Lazy<IServiceProvider> services = new(BuildWorkerProvider);
+
+    private readonly IMessageBus bus;
+    private readonly ILogger<SqsLambdaHandler> logger;
+    private readonly JsonSerializerOptions jsonOptions;
+
+    public SqsLambdaHandler()
     {
+        bus = services.Value.GetRequiredService<IMessageBus>();
+        logger = services.Value.GetRequiredService<ILogger<SqsLambdaHandler>>();
+        jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+    }
+
+    public SqsLambdaHandler(IMessageBus bus, ILogger<SqsLambdaHandler> logger)
+    {
+        this.bus = bus;
+        this.logger = logger;
+        this.jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+    }
+
+    private static IServiceProvider BuildWorkerProvider()
+    {
+        var builder = Host.CreateApplicationBuilder();
+
+        builder.Logging.AddLogging();
+        builder.AddAwsSecureConfiguration();
+
+        var conn = builder.Configuration.GetConnectionString("Marten")!;
+
+        builder.Services.AddDatabase(conn);
+        builder.Services.AddAi(builder.Configuration);
+        builder.Services.AddFeatures(builder.Configuration);
+        builder.Services.AddWolverine(builder.Configuration);
+
+        var host = builder.Build();
+        host.Start();
+
+        return host.Services;
+    }
+
+    public async Task<SQSBatchResponse> FunctionHandler(SQSEvent sqsEvent, ILambdaContext context)
+    {
+        var response = new SQSBatchResponse { BatchItemFailures = [] };
+
+        using var cts = new CancellationTokenSource();
+        if (context != null && context.RemainingTime > TimeSpan.FromMilliseconds(500))
+        {
+            cts.CancelAfter(context.RemainingTime.Subtract(TimeSpan.FromMilliseconds(500)));
+        }
+
         foreach (var record in sqsEvent.Records)
         {
-            // We pass the raw message body to Wolverine's internal bus
-            // This triggers the specific handlers (Marten, Bedrock, etc.) in this process
-            await bus.InvokeAsync(record.Body);
+            try
+            {
+                var message = JsonSerializer.Deserialize<ProcessWhatsAppMessage>(record.Body, jsonOptions);
+                if (message != null)
+                {
+                    await bus.InvokeAsync(message, cts.Token);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[WORKER] Error processing record {MessageId}", record.MessageId);
+                response.BatchItemFailures.Add(new BatchItemFailure { ItemIdentifier = record.MessageId });
+            }
         }
+
+        return response;
     }
 }

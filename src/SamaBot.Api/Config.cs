@@ -1,4 +1,5 @@
 using Amazon.BedrockRuntime;
+using Amazon.BedrockRuntime.Model;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Events;
@@ -15,6 +16,9 @@ using SamaBot.Api.Features.LanguageDetection;
 using SamaBot.Api.Features.Tenancy;
 using SamaBot.Api.Features.WhatsAppDispatcher;
 using SamaBot.Api.Features.WhatsAppWebhook;
+using Wolverine;
+using Wolverine.AmazonSqs;
+using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 
 namespace SamaBot.Api;
@@ -24,40 +28,36 @@ public static class Config
     public static IServiceCollection AddFeatures(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<WhatsAppOptions>(configuration.GetSection(WhatsAppOptions.SectionName));
-
         services.AddWhatsAppWebhookFeature();
         services.AddLanguageDetectionFeature();
         services.AddKnowledgeFeature();
         services.AddWhatsAppDispatcherFeature(configuration);
-
         return services;
     }
 
     public static IServiceCollection AddDatabase(this IServiceCollection services, string connectionString)
     {
         services.AddNpgsqlDataSource(connectionString);
+
         services.CritterStackDefaults(opts =>
         {
             opts.Development.GeneratedCodeMode = TypeLoadMode.Auto;
-            opts.Production.GeneratedCodeMode = TypeLoadMode.Static;
+            opts.Production.GeneratedCodeMode = TypeLoadMode.Auto;
         });
 
         services.AddMarten(opts =>
         {
             opts.Connection(connectionString);
-
             opts.Events.StreamIdentity = StreamIdentity.AsString;
             opts.Events.TenancyStyle = TenancyStyle.Conjoined;
 
             opts.Storage.Add(new HnswIndexCustomizer());
-
             opts.Projections.Add<ProcessedMessageProjection>(ProjectionLifecycle.Inline);
 
             opts.Schema.For<TenantProfile>().SingleTenanted();
             opts.Schema.For<ProcessedMessage>().MultiTenanted();
             opts.Schema.For<DocumentChunk>().MultiTenanted();
         })
-        .ApplyAllDatabaseChangesOnStartup()
         .UseNpgsqlDataSource()
         .UseLightweightSessions()
         .IntegrateWithWolverine(cfg => cfg.UseWolverineManagedEventSubscriptionDistribution = true);
@@ -67,18 +67,60 @@ public static class Config
 
     public static IServiceCollection AddAi(this IServiceCollection services, IConfiguration configuration)
     {
-        // Bind settings from appsettings.json
         services.Configure<BedrockSettings>(configuration.GetSection("BedrockSettings"));
-
-        // Register AWS Bedrock Client (It will automatically use the ECS Task Role)
         services.AddDefaultAWSOptions(configuration.GetAWSOptions());
         services.AddAWSService<IAmazonBedrockRuntime>();
-
-        // Register our custom Bedrock services
         services.AddScoped<IChatService, ChatService>();
         services.AddScoped<IEmbeddingService, EmbeddingService>();
-
         return services;
+    }
+
+    public static ILoggingBuilder AddLogging(this ILoggingBuilder logging)
+    {
+        logging.ClearProviders();
+        logging.AddJsonConsole(options =>
+        {
+            options.IncludeScopes = false;
+            options.TimestampFormat = "HH:mm:ss ";
+            options.JsonWriterOptions = new System.Text.Json.JsonWriterOptions { Indented = false };
+        });
+        return logging;
+    }
+
+    public static IServiceCollection AddWolverine(this IServiceCollection services, IConfiguration config)
+    {
+        return services.AddWolverine(opts =>
+        {
+            opts.Discovery.IncludeAssembly(typeof(Program).Assembly);
+
+            opts.Policies.AutoApplyTransactions();
+            opts.Policies.OnException<ThrottlingException>()
+                .RetryWithCooldown(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(30));
+
+            var sqsUrl = Environment.GetEnvironmentVariable("AWS_ENDPOINT_URL_SQS");
+
+            var sqs = opts.UseAmazonSqsTransport(sqsConfig =>
+            {
+                if (!string.IsNullOrEmpty(sqsUrl))
+                {
+                    sqsConfig.ServiceURL = sqsUrl;
+                    sqsConfig.AuthenticationRegion = "us-west-1";
+                }
+            });
+
+            sqs.SystemQueuesAreEnabled(false);
+
+            opts.PublishMessage<ProcessWhatsAppMessage>()
+                .ToSqsQueue("chatbot-messages-queue")
+                .SendInline()
+                .UseInterop(queue => new RawJsonSqsMapper());
+
+            if (config.GetValue<bool>("EnableSqsListener"))
+            {
+                opts.ListenToSqsQueue("chatbot-messages-queue")
+                    .ReceiveRawJsonMessage(typeof(ProcessWhatsAppMessage));
+            }
+        });
     }
 
     public static WebApplication EnsureVectorExtensionExists(this WebApplication app, string connectionString)

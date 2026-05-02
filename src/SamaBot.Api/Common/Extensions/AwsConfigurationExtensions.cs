@@ -7,7 +7,7 @@ namespace SamaBot.Api.Common.Extensions;
 
 public static class AwsConfigurationExtensions
 {
-    public static void AddAwsSecureConfiguration(this WebApplicationBuilder builder)
+    public static void AddAwsSecureConfiguration(this IHostApplicationBuilder builder)
     {
         var martenArn = Environment.GetEnvironmentVariable("SECRET_ARN_MARTEN");
         var ssmPath = Environment.GetEnvironmentVariable("SSM_PATH_WHATSAPP");
@@ -29,7 +29,7 @@ public static class AwsConfigurationExtensions
     }
 
     public static void AddAwsSecureConfigurationCore(
-        this WebApplicationBuilder builder,
+        this IHostApplicationBuilder builder,
         IAmazonSecretsManager secretsClient,
         IAmazonSimpleSystemsManagement ssmClient)
     {

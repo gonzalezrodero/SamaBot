@@ -19,25 +19,23 @@ public class WhatsAppPayloadProcessor : IWhatsAppPayloadProcessor
     public WhatsAppPayloadProcessor(IOptions<WhatsAppOptions> options)
     {
         this.options = options.Value;
-
-        // Removed explicit caller argument
         ArgumentException.ThrowIfNullOrWhiteSpace(this.options.AppSecret);
     }
 
     public async Task<bool> IsSignatureValidAsync(HttpRequest request)
     {
         var signatureHeader = request.Headers["X-Hub-Signature-256"].FirstOrDefault();
-        if (string.IsNullOrEmpty(signatureHeader) || !signatureHeader.StartsWith("sha256="))
-        {
-            return false;
-        }
+        if (string.IsNullOrEmpty(signatureHeader) || !signatureHeader.StartsWith("sha256=")) return false;
 
         var incomingSignature = signatureHeader["sha256=".Length..];
 
         var body = await ReadRequestBodyAsync(request);
         var expectedSignature = ComputeSignature(body);
 
-        return incomingSignature.Equals(expectedSignature, StringComparison.OrdinalIgnoreCase);
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(incomingSignature.ToLowerInvariant()),
+            Encoding.UTF8.GetBytes(expectedSignature)
+        );
     }
 
     public async Task<ProcessWhatsAppMessage?> ExtractMessageAsync(HttpRequest request)
@@ -62,8 +60,11 @@ public class WhatsAppPayloadProcessor : IWhatsAppPayloadProcessor
 
     private string ComputeSignature(string payload)
     {
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(options.AppSecret));
-        var hashBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+        var keyBytes = Encoding.UTF8.GetBytes(options.AppSecret);
+        var bodyBytes = Encoding.UTF8.GetBytes(payload);
+
+        using var hmac = new HMACSHA256(keyBytes);
+        var hashBytes = hmac.ComputeHash(bodyBytes);
 
         return Convert.ToHexStringLower(hashBytes);
     }
