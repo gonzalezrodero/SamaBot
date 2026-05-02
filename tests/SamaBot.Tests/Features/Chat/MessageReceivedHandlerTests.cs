@@ -9,23 +9,24 @@ using SamaBot.Tests.Extensions;
 namespace SamaBot.Tests.Features.Chat;
 
 [Collection("Integration")]
-public class MessageAnalyzedHandlerTests(IntegrationAppFixture fixture)
+public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
 {
     [Fact]
-    public async Task GivenAnalyzedMessage_WhenHandlerRuns_ThenItGeneratesReplyAndAppendsToStream()
+    public async Task GivenReceivedMessage_WhenHandlerRuns_ThenItGeneratesReplyAndAppendsToStream()
     {
         // Arrange
         var tenantId = "club-sama";
         var botPhone = "34111222333";
         var userPhone = "34888777666";
 
-        var incomingEvent = new MessageAnalyzed(
+        // Now we use MessageReceived directly from the Webhook
+        var incomingEvent = new MessageReceived(
             MessageId: "atomic.Chat1",
-            BotPhoneNumberId: botPhone,
             PhoneNumber: userPhone,
-            LanguageCode: "ca",
-            OriginalText: "Quina és la contrasenya?",
-            TenantId: tenantId
+            Text: "Quina és la contrasenya?",
+            TenantId: tenantId,
+            BotPhoneNumberId: botPhone,
+            ReceivedAt: DateTimeOffset.UtcNow
         );
 
         // Act
@@ -59,18 +60,11 @@ public class MessageAnalyzedHandlerTests(IntegrationAppFixture fixture)
         // 1. Pre-populate the Marten Event Store
         session.Events.Append(userPhone, new MessageReceived("old.1", userPhone, "Hola", tenantId, botPhone, DateTimeOffset.UtcNow));
         session.Events.Append(userPhone, new ReplyGenerated("old.1", botPhone, userPhone, "¡Hola! Soy SamàBot.", tenantId));
-        session.Events.Append(userPhone, new MessageReceived("atomic.Chat2", userPhone, "¿Me recuerdas?", tenantId, botPhone, DateTimeOffset.UtcNow));
-        await session.SaveChangesAsync();
 
-        // 2. The new incoming message
-        var incomingEvent = new MessageAnalyzed(
-            MessageId: "atomic.Chat2",
-            BotPhoneNumberId: botPhone,
-            PhoneNumber: userPhone,
-            LanguageCode: "es",
-            OriginalText: "¿Me recuerdas?",
-            TenantId: tenantId
-        );
+        // This is the event that will trigger the handler, but we also save it so the handler reads it as context
+        var incomingEvent = new MessageReceived("atomic.Chat2", userPhone, "¿Me recuerdas?", tenantId, botPhone, DateTimeOffset.UtcNow);
+        session.Events.Append(userPhone, incomingEvent);
+        await session.SaveChangesAsync();
 
         // Act
         await fixture.Host.InvokeMessageAndWaitAsync(incomingEvent);
