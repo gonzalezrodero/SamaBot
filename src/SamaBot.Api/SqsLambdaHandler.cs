@@ -4,6 +4,7 @@ using SamaBot.Api.Common.Extensions;
 using SamaBot.Api.Features.WhatsAppWebhook;
 using System.Text.Json;
 using Wolverine;
+using static Amazon.Lambda.SQSEvents.SQSBatchResponse;
 
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
 
@@ -11,8 +12,6 @@ namespace SamaBot.Api;
 
 public class SqsLambdaHandler
 {
-    // Usamos Lazy para que la inicialización del Host (Marten, Wolverine, etc.) 
-    // ocurra de forma segura y una sola vez durante el Cold Start de la Lambda.
     private static readonly Lazy<IServiceProvider> services = new(BuildWorkerProvider);
 
     private readonly IMessageBus bus;
@@ -49,23 +48,37 @@ public class SqsLambdaHandler
 
         var host = builder.Build();
         host.Start();
+
         return host.Services;
     }
 
-    public async Task FunctionHandler(SQSEvent sqsEvent, ILambdaContext _)
+    public async Task<SQSBatchResponse> FunctionHandler(SQSEvent sqsEvent, ILambdaContext context)
     {
-        logger.LogWarning(">>> [WORKER] Batch recibido con {Count} mensajes.", sqsEvent.Records.Count);
+        var response = new SQSBatchResponse { BatchItemFailures = [] };
+
+        using var cts = new CancellationTokenSource();
+        if (context != null && context.RemainingTime > TimeSpan.FromMilliseconds(500))
+        {
+            cts.CancelAfter(context.RemainingTime.Subtract(TimeSpan.FromMilliseconds(500)));
+        }
 
         foreach (var record in sqsEvent.Records)
         {
-            logger.LogWarning(">>> [WORKER] RAW BODY DE SQS: {Body}", record.Body);
-
-            var message = JsonSerializer.Deserialize<ProcessWhatsAppMessage>(record.Body, jsonOptions);
-
-            if (message != null)
+            try
             {
-                await bus.InvokeAsync(message);
+                var message = JsonSerializer.Deserialize<ProcessWhatsAppMessage>(record.Body, jsonOptions);
+                if (message != null)
+                {
+                    await bus.InvokeAsync(message, cts.Token);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[WORKER] Error processing record {MessageId}", record.MessageId);
+                response.BatchItemFailures.Add(new BatchItemFailure { ItemIdentifier = record.MessageId });
             }
         }
+
+        return response;
     }
 }

@@ -39,7 +39,6 @@ public static class Config
     {
         services.AddNpgsqlDataSource(connectionString);
 
-        // Vuelve a usar la API moderna sin miedo
         services.CritterStackDefaults(opts =>
         {
             opts.Development.GeneratedCodeMode = TypeLoadMode.Auto;
@@ -92,7 +91,7 @@ public static class Config
     {
         return services.AddWolverine(opts =>
         {
-           opts.Discovery.IncludeAssembly(typeof(Program).Assembly);
+            opts.Discovery.IncludeAssembly(typeof(Program).Assembly);
 
             opts.Policies.AutoApplyTransactions();
             opts.Policies.OnException<ThrottlingException>()
@@ -111,13 +110,11 @@ public static class Config
 
             sqs.SystemQueuesAreEnabled(false);
 
-            // Configuración de salida (Webhook -> SQS)
             opts.PublishMessage<ProcessWhatsAppMessage>()
                 .ToSqsQueue("chatbot-messages-queue")
                 .SendInline()
                 .UseInterop(queue => new RawJsonSqsMapper());
 
-            // Configuración de entrada (Solo para tests locales/Alba)
             if (config.GetValue<bool>("EnableSqsListener"))
             {
                 opts.ListenToSqsQueue("chatbot-messages-queue")

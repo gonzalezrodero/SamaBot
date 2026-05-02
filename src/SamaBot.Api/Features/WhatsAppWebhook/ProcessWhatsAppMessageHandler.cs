@@ -13,7 +13,6 @@ public static class ProcessWhatsAppMessageHandler
         IMessageBus bus,
         CancellationToken ct)
     {
-        // 1. Global search (non-tenant) to find who owns this phone ID
         using var querySession = store.QuerySession();
         var tenant = await querySession.Query<TenantProfile>()
             .FirstOrDefaultAsync(x => x.BotPhoneNumberId == command.BotPhoneNumberId, ct);

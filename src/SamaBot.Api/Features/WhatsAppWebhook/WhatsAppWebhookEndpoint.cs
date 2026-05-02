@@ -25,36 +25,31 @@ public class WhatsAppWebhookEndpoint
 
         logger.LogWarning("Webhook verification failed. Expected Token: '{Expected}', Received Token: '{Received}'", verifyToken, token);
 
-        return Results.StatusCode(403);
+        return Results.Forbid();
     }
 
     [WolverinePost("/api/whatsapp/webhook")]
     public async Task<IResult> ReceiveMessage(
-            HttpRequest request,
-            IWhatsAppPayloadProcessor processor,
-            IMessageBus bus,
-            ILogger<WhatsAppWebhookEndpoint> logger)
+        HttpRequest request,
+        IWhatsAppPayloadProcessor processor,
+        IMessageBus bus,
+        ILogger<WhatsAppWebhookEndpoint> logger)
     {
-        // Forzamos la lectura del body aquí mismo para verlo en CloudWatch
-        request.EnableBuffering();
-        request.Body.Position = 0;
-        using var reader = new StreamReader(request.Body, System.Text.Encoding.UTF8, leaveOpen: true);
-        var rawBody = await reader.ReadToEndAsync();
-        request.Body.Position = 0;
-
-        logger.LogWarning(">>> [DEBUG] RAW BODY RECIBIDO: {Body}", rawBody);
+        if (!await processor.IsSignatureValidAsync(request))
+        {
+            logger.LogWarning("Invalid WhatsApp signature.");
+            return Results.Unauthorized();
+        }
 
         var message = await processor.ExtractMessageAsync(request);
 
         if (message != null)
         {
-            logger.LogWarning(">>> [DEBUG] Message extracted successfully.");
             await bus.PublishAsync(message);
-            logger.LogWarning(">>> [DEBUG] Message successfully published to SQS bus.");
         }
         else
         {
-            logger.LogWarning(">>> [DEBUG] Extraction returned NULL. El parseo falló.");
+            logger.LogDebug("Received Payload does not contain a processable message.");
         }
 
         return Results.Ok();
