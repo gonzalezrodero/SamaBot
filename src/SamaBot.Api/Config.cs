@@ -12,7 +12,6 @@ using SamaBot.Api.Core.Entities;
 using SamaBot.Api.Features.Chat;
 using SamaBot.Api.Features.Knowledge;
 using SamaBot.Api.Features.Knowledge.Services;
-using SamaBot.Api.Features.LanguageDetection;
 using SamaBot.Api.Features.Tenancy;
 using SamaBot.Api.Features.WhatsAppDispatcher;
 using SamaBot.Api.Features.WhatsAppWebhook;
@@ -29,7 +28,6 @@ public static class Config
     {
         services.Configure<WhatsAppOptions>(configuration.GetSection(WhatsAppOptions.SectionName));
         services.AddWhatsAppWebhookFeature();
-        services.AddLanguageDetectionFeature();
         services.AddKnowledgeFeature();
         services.AddWhatsAppDispatcherFeature(configuration);
         return services;
