@@ -8,6 +8,8 @@ namespace SamaBot.Api.Features.Chat;
 
 public static class MessageReceivedHandler
 {
+    private static readonly string[] DeleteCommands = ["BORRAR DATOS", "ESBORRAR DADES", "DELETE DATA"];
+
     private const string SystemPromptTemplate = """
         You are the official Information Assistant for the organization. 
         Your primary mission is to answer questions using EXCLUSIVELY the information provided inside the <context> tags.
@@ -27,8 +29,8 @@ public static class MessageReceivedHandler
         """;
 
     private const string PrivacyPolicyRule = """
-        7. PRIVACY POLICY (MANDATORY): This is the first interaction with the user. You MUST include a brief, polite sentence at the END of your message informing them that by using this chat, they accept the Privacy Policy. Include this exact URL at the end of the sentence: https://static1.squarespace.com/static/5d774ba386ebf92cf9611ccf/t/65cb39917d01065ce0d02a07/1707817361861/POLITICA+DE+PRIVACIDAD.pdf
-        Translate this warning to the language you are using to reply.
+        7. PRIVACY POLICY (MANDATORY): This is the first interaction with the user. You MUST include a brief, polite sentence at the END of your message with this exact meaning: "By using this chat, you accept the Privacy Policy: https://static1.squarespace.com/static/5d774ba386ebf92cf9611ccf/t/65cb39917d01065ce0d02a07/1707817361861/POLITICA+DE+PRIVACIDAD.pdf. You can delete your history at any time by sending the command 'BORRAR DATOS'."
+        CRITICAL: Translate this warning to the language you are using to reply, BUT you MUST leave the exact command 'BORRAR DATOS' in Spanish and uppercase. Do not translate the command itself.
         """;
 
     public static async Task Handle(
@@ -40,6 +42,23 @@ public static class MessageReceivedHandler
         CancellationToken ct)
     {
         using var session = store.LightweightSession(@event.TenantId);
+
+        var userText = @event.Text.Trim().ToUpperInvariant();
+        if (DeleteCommands.Contains(userText))
+        {
+            session.Events.ArchiveStream(@event.PhoneNumber);
+            await session.SaveChangesAsync(ct);
+
+            var deleteConfirmation = new ReplyGenerated(
+                @event.MessageId,
+                @event.BotPhoneNumberId,
+                @event.PhoneNumber,
+                "✅ Historial y datos eliminados. / Historial i dades esborrades. / History and data deleted.",
+                @event.TenantId);
+
+            await bus.InvokeAsync(deleteConfirmation, ct);
+            return;
+        }
 
         var chatHistory = await ExtractChatHistory(@event.PhoneNumber, session, ct);
 
@@ -54,7 +73,6 @@ public static class MessageReceivedHandler
         }
 
         var systemMessage = string.Format(SystemPromptTemplate, privacyWarningRule, contextBuilder);
-
         var replyText = await chatService.GetResponseAsync(systemMessage, chatHistory, ct);
 
         if (string.IsNullOrWhiteSpace(replyText))
