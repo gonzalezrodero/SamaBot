@@ -91,6 +91,47 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
         ), It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Theory]
+    [InlineData("BORRAR DATOS")]
+    [InlineData("esborrar dades")]
+    [InlineData("DELETE data")]
+    public async Task GivenDeleteCommand_WhenHandlerRuns_ThenItArchivesStreamAndBypassesBedrock(string commandText)
+    {
+        // Arrange
+        fixture.BedrockClientMock.Invocations.Clear();
+
+        var tenantId = "club-sama";
+        var botPhone = "34111222333";
+        var userPhone = $"3477{Guid.NewGuid().ToString()[..7]}";
+
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantId);
+
+        session.Events.Append(userPhone, new MessageReceived("old.1", userPhone, "Hola", tenantId, botPhone, DateTimeOffset.UtcNow));
+        await session.SaveChangesAsync();
+
+        var incomingEvent = new MessageReceived(
+            MessageId: "atomic.DeleteCmd",
+            PhoneNumber: userPhone,
+            Text: commandText, // Using the parameterized command
+            TenantId: tenantId,
+            BotPhoneNumberId: botPhone,
+            ReceivedAt: DateTimeOffset.UtcNow
+        );
+
+        // Act
+        await fixture.Host.InvokeMessageAndWaitAsync(incomingEvent);
+
+        // Assert 1: Verify the stream is archived
+        var streamEvents = await session.Events.FetchStreamAsync(userPhone);
+        streamEvents.Should().BeEmpty("The stream should be archived and thus return no active events.");
+
+        // Assert 2: Verify Bedrock was NEVER called
+        fixture.BedrockClientMock.Verify(c => c.InvokeModelAsync(
+            It.IsAny<InvokeModelRequest>(),
+            It.IsAny<CancellationToken>()),
+            Times.Never, "Bedrock should not be invoked for system commands.");
+    }
+
     private static bool VerifyChatHistoryPayload(InvokeModelRequest request)
     {
         var requestJson = Encoding.UTF8.GetString(request.Body.ToArray());
