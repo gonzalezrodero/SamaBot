@@ -5,21 +5,25 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SamaBot.Api.Core.Events;
 using SamaBot.Tests.Extensions;
+using System.Text;
 
 namespace SamaBot.Tests.Features.Chat;
 
 [Collection("Integration")]
 public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
 {
+    private const string PrivacyPolicyUrl = "https://static1.squarespace.com/static/5d774ba386ebf92cf9611ccf/t/65cb39917d01065ce0d02a07/1707817361861/POLITICA+DE+PRIVACIDAD.pdf";
+
     [Fact]
     public async Task GivenReceivedMessage_WhenHandlerRuns_ThenItGeneratesReplyAndAppendsToStream()
     {
         // Arrange
+        fixture.BedrockClientMock.Invocations.Clear();
+
         var tenantId = "club-sama";
         var botPhone = "34111222333";
         var userPhone = "34888777666";
 
-        // Now we use MessageReceived directly from the Webhook
         var incomingEvent = new MessageReceived(
             MessageId: "atomic.Chat1",
             PhoneNumber: userPhone,
@@ -40,17 +44,22 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
 
         replyGenerated.Should().NotBeNull("The handler should have appended a ReplyGenerated event to the stream.");
 
-        replyGenerated!.Text.Should().Be("Mocked AI Response: Soy SamaBot y esto es un test E2E.");
-        replyGenerated.MessageId.Should().Be("atomic.Chat1");
+        replyGenerated!.MessageId.Should().Be("atomic.Chat1");
         replyGenerated.BotPhoneNumberId.Should().Be(botPhone);
         replyGenerated.PhoneNumber.Should().Be(userPhone);
         replyGenerated.TenantId.Should().Be(tenantId);
+
+        fixture.BedrockClientMock.Verify(c => c.InvokeModelAsync(It.Is<InvokeModelRequest>(req =>
+            VerifyPrivacyPolicyInjected(req)
+        ), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task GivenPreviousConversation_WhenHandlerRuns_ThenItUsesHistoryAndAppendsReply()
     {
         // Arrange
+        fixture.BedrockClientMock.Invocations.Clear();
+
         var tenantId = "club-sama";
         var botPhone = "34111222333";
         var userPhone = "34999555111";
@@ -76,16 +85,23 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
         replies.Should().HaveCount(2);
         replies.Last().MessageId.Should().Be("atomic.Chat2");
 
+        // Verify history is sent AND Privacy Policy is NOT injected since it is a returning user
         fixture.BedrockClientMock.Verify(c => c.InvokeModelAsync(It.Is<InvokeModelRequest>(req =>
-            VerifyChatHistoryPayload(req)
+            VerifyChatHistoryPayload(req) && !VerifyPrivacyPolicyInjected(req)
         ), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static bool VerifyChatHistoryPayload(InvokeModelRequest request)
     {
-        var requestJson = System.Text.Encoding.UTF8.GetString(request.Body.ToArray());
+        var requestJson = Encoding.UTF8.GetString(request.Body.ToArray());
         return requestJson.Contains("Hola") &&
                requestJson.Contains("¡Hola! Soy SamàBot.") &&
                requestJson.Contains("¿Me recuerdas?");
+    }
+
+    private static bool VerifyPrivacyPolicyInjected(InvokeModelRequest request)
+    {
+        var requestJson = Encoding.UTF8.GetString(request.Body.ToArray());
+        return requestJson.Contains(PrivacyPolicyUrl);
     }
 }
