@@ -8,7 +8,7 @@ namespace SamaBot.Api.Features.Chat;
 /// Background worker that executes the GDPR hard delete and AI anonymization.
 /// Triggered by the DeleteChatHistoryCommand.
 /// </summary>
-public class DeleteChatHistoryHandler
+public static class DeleteChatHistoryHandler
 {
     public static async Task Handle(
         DeleteChatHistoryCommand command,
