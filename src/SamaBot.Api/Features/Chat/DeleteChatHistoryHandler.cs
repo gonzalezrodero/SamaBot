@@ -44,7 +44,7 @@ public static class DeleteChatHistoryHandler
 
         // 6. Multi-language Confirmation Message
         var finalConfirmation = new ReplyGenerated(
-            MessageId: deletedId.ToString(),
+            MessageId: command.MessageId,
             BotPhoneNumberId: command.BotPhoneNumberId,
             PhoneNumber: command.PhoneNumber,
             Text: BotPrompts.DeleteDataSuccessReply,

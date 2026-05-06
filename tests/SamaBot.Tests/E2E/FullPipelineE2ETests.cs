@@ -163,6 +163,78 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
             .Should().Be(1, "The duplicate message should have been ignored by the handler.");
     }
 
+    [Fact]
+    public async Task GdprDeletion_WhenUserRequestsDeletion_StreamIsRemovedAndDataAnonymized()
+    {
+        var tenant = $"club-gdpr-{Guid.NewGuid():N}";
+        var botPhoneId = $"bot-gdpr-{Guid.NewGuid():N}";
+        await fixture.SeedTenantAsync(tenant, botPhoneId);
+
+        var testPhoneNumber = $"{Random.Shared.Next(800000000, 899999999)}";
+
+        // --- 1. Arrange: Create initial chat history ---
+        // Send a normal message first to ensure the stream exists in Marten
+        var payload1 = $$"""
+        {
+          "object": "whatsapp_business_account",
+          "entry": [ { "changes": [ { "value": {
+            "metadata": { "phone_number_id": "{{botPhoneId}}" },
+            "messages": [ { "from": "{{testPhoneNumber}}", "id": "wamid.MSG_NORMAL", "timestamp": "1603059201", "text": { "body": "Hello, how are you?" }, "type": "text" } ]
+          } } ] } ]
+        }
+        """;
+        var sig1 = GenerateSignature(payload1, "integration_test_secret");
+
+        await fixture.Host.Scenario(s =>
+        {
+            s.Post.Text(payload1).ContentType("application/json").ToUrl("/api/whatsapp/webhook");
+            s.WithRequestHeader("X-Hub-Signature-256", sig1);
+            s.StatusCodeShouldBeOk();
+        });
+
+        // Wait for the first message to be processed and the stream to be created
+        await WaitForConditionAsync(async () =>
+        {
+            using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenant);
+            var evts = await session.Events.FetchStreamAsync(testPhoneNumber);
+            return evts.Any();
+        }, "The initial message was not processed correctly.");
+
+        // --- 2. Act: Send "BORRAR DATOS" ---
+        var payload2 = $$"""
+        {
+          "object": "whatsapp_business_account",
+          "entry": [ { "changes": [ { "value": {
+            "metadata": { "phone_number_id": "{{botPhoneId}}" },
+            "messages": [ { "from": "{{testPhoneNumber}}", "id": "wamid.MSG_DELETE", "timestamp": "1603059202", "text": { "body": "BORRAR DATOS" }, "type": "text" } ]
+          } } ] } ]
+        }
+        """;
+        var sig2 = GenerateSignature(payload2, "integration_test_secret");
+
+        await fixture.Host.Scenario(s =>
+        {
+            s.Post.Text(payload2).ContentType("application/json").ToUrl("/api/whatsapp/webhook");
+            s.WithRequestHeader("X-Hub-Signature-256", sig2);
+            s.StatusCodeShouldBeOk();
+        });
+
+        // --- 3. Assert: Verify Deletion and Anonymization ---
+        // Wait until the stream is empty (physical deletion)
+        await WaitForConditionAsync(async () =>
+        {
+            using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenant);
+            var evts = await session.Events.FetchStreamAsync(testPhoneNumber);
+            return !evts.Any(); // We want this to return true when the list is empty
+        }, "The chat history was not deleted from Marten.");
+
+        // Verify that the anonymized conversation document has been saved
+        using var assertSession = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenant);
+        var anonymizedDocs = await assertSession.Query<AnonymizedChat>().ToListAsync();
+
+        anonymizedDocs.Should().NotBeEmpty("An anonymized chat record should have been saved.");
+    }
+
     private static string GenerateSignature(string payload, string secret)
     {
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
