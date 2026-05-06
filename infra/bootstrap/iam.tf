@@ -47,7 +47,7 @@ data "aws_caller_identity" "current" {}
 
 resource "aws_iam_policy" "bedrock_standard_models" {
   name        = "${var.project_name}-bedrock-standard-access"
-  description = "Allows Claude 3.5 Sonnet and Titan models with marketplace validation"
+  description = "Allows Claude Sonnet 4.6 and Titan models with marketplace validation"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -56,8 +56,8 @@ resource "aws_iam_policy" "bedrock_standard_models" {
         Effect = "Allow"
         Action = "bedrock:InvokeModel"
         Resource = [
-          "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0",
-          "arn:aws:bedrock:*:${data.aws_caller_identity.current.account_id}:inference-profile/*",
+          "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6",
+          "arn:aws:bedrock:*::inference-profile/eu.anthropic.claude-sonnet-4-6",
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-text-lite-v1",
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-text-express-v1",
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-embed-text-v2:0"
