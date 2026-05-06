@@ -59,7 +59,7 @@ data "aws_iam_policy_document" "lambda_custom_permissions" {
     ]
   }
 
-statement {
+  statement {
     sid    = "AllowBedrockSonnet46"
     effect = "Allow"
     actions = [
