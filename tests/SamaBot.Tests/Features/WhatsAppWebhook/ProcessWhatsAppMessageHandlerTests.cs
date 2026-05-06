@@ -25,8 +25,7 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
             BotPhoneNumberId: botPhoneId, // El comando viene con el ID de Meta
             PhoneNumber: "34999111222",
             Text: "Pure Handler Text",
-            Timestamp: DateTimeOffset.UtcNow,
-            RawPayload: "{}"
+            Timestamp: DateTimeOffset.UtcNow
         );
 
         // Act: Directly invoke the message bypassing the HTTP layer
@@ -54,7 +53,7 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
 
         await SeedTenantAsync(tenantSlug, botPhoneId);
 
-        var command = new ProcessWhatsAppMessage("wamid.DUP", botPhoneId, "34999111222", "Texto", DateTimeOffset.UtcNow, "{}");
+        var command = new ProcessWhatsAppMessage("wamid.DUP", botPhoneId, "34999111222", "Texto", DateTimeOffset.UtcNow);
 
         // Act: Send the same message twice to simulate Meta webhook retries
         await fixture.Host.InvokeMessageAndWaitAsync(command);
@@ -90,8 +89,7 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
                     PhoneNumber: "34999888777",
                     Text: "Este mensaje es un reintento del servidor de Meta",
                     BotPhoneNumberId: botPhone,
-                    Timestamp: DateTimeOffset.UtcNow,
-                    RawPayload: "{\"fake\":\"payload\"}"
+                    Timestamp: DateTimeOffset.UtcNow
                 );
 
         // Act

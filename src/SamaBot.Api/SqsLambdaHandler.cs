@@ -72,9 +72,8 @@ public class SqsLambdaHandler
                     await bus.InvokeAsync(message, cts.Token);
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                logger.LogError(ex, "[WORKER] Error processing record {MessageId}", record.MessageId);
                 response.BatchItemFailures.Add(new BatchItemFailure { ItemIdentifier = record.MessageId });
             }
         }
