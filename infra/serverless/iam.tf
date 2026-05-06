@@ -59,7 +59,7 @@ data "aws_iam_policy_document" "lambda_custom_permissions" {
     ]
   }
 
-  statement {
+statement {
     sid    = "AllowBedrockSonnet46"
     effect = "Allow"
     actions = [
@@ -68,8 +68,8 @@ data "aws_iam_policy_document" "lambda_custom_permissions" {
     ]
     resources = [
       "arn:aws:bedrock:${var.aws_region}:${var.aws_account_id}:inference-profile/eu.anthropic.claude-sonnet-4-6",
-      "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0",
-      "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-embed-text-v2:0"
+      "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6",
+      "arn:aws:bedrock:*::foundation-model/amazon.titan-embed-text-v2:0"
     ]
   }
 }
