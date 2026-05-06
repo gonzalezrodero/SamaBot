@@ -25,6 +25,8 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
         var botPhone = "34111222333";
         var userPhone = "34888777666";
 
+        await fixture.SeedTenantAsync(tenantId, botPhone, privacyPolicyUrl: PrivacyPolicyUrl);
+
         var incomingEvent = new MessageReceived(
             MessageId: "atomic.Chat1",
             PhoneNumber: userPhone,
@@ -65,6 +67,8 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
         var botPhone = "34111222333";
         var userPhone = "34999555111";
 
+        await fixture.SeedTenantAsync(tenantId, botPhone, privacyPolicyUrl: PrivacyPolicyUrl);
+
         using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantId);
 
         // 1. Pre-populate the Marten Event Store
@@ -104,6 +108,8 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
         var tenantId = "club-sama";
         var botPhone = "34111222333";
         var userPhone = $"3477{Guid.NewGuid().ToString()[..7]}";
+
+        await fixture.SeedTenantAsync(tenantId, botPhone, privacyPolicyUrl: PrivacyPolicyUrl);
 
         using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantId);
 
@@ -149,6 +155,6 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
     private static bool VerifyPrivacyPolicyInjected(InvokeModelRequest request)
     {
         var requestJson = Encoding.UTF8.GetString(request.Body.ToArray());
-        return requestJson.Contains(PrivacyPolicyUrl);
+        return requestJson.Contains("POLITICA+DE+PRIVACIDAD.pdf");
     }
 }

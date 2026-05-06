@@ -4,7 +4,6 @@ using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using SamaBot.Api.Core.Entities;
 using SamaBot.Api.Core.Events;
-using SamaBot.Api.Features.Tenancy;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
@@ -22,7 +21,7 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
     {
         var tenant = $"club-{Guid.NewGuid():N}";
         var botPhoneId = $"bot-{Guid.NewGuid():N}";
-        await SeedTenantAsync(tenant, botPhoneId);
+        await fixture.SeedTenantAsync(tenant, botPhoneId);
 
         // --- 1. Arrange: Data Ingestion ---
         var tempPdfPath = Path.Combine(Path.GetTempPath(), $"test_knowledge_{Guid.NewGuid()}.pdf");
@@ -112,7 +111,7 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
     {
         var tenant = $"club-idemp-{Guid.NewGuid():N}";
         var botPhoneId = $"bot-idemp-{Guid.NewGuid():N}";
-        await SeedTenantAsync(tenant, botPhoneId);
+        await fixture.SeedTenantAsync(tenant, botPhoneId);
 
         var testPhoneNumber = $"{Random.Shared.Next(700000000, 799999999)}";
         var messageId = $"wamid.IDEMP_{Guid.NewGuid():N}";
@@ -162,15 +161,6 @@ public class FullPipelineE2ETests(IntegrationAppFixture fixture)
 
         streamEvents.Select(e => e.Data).OfType<MessageReceived>().Count(x => x.MessageId == messageId)
             .Should().Be(1, "The duplicate message should have been ignored by the handler.");
-    }
-
-    // --- Helper Methods ---
-
-    private async Task SeedTenantAsync(string tenant, string botPhoneId)
-    {
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
-        session.Store(new TenantProfile { Id = tenant, BotPhoneNumberId = botPhoneId });
-        await session.SaveChangesAsync();
     }
 
     private static string GenerateSignature(string payload, string secret)

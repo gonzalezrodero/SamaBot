@@ -161,6 +161,25 @@ public class IntegrationAppFixture : IAsyncLifetime
         await _postgres.DisposeAsync();
         await _sqsContainer.DisposeAsync();
     }
+
+    public async Task SeedTenantAsync(
+        string tenantSlug,
+        string botPhoneId,
+        string systemPrompt = "You are a helpful test assistant.",
+        string privacyPolicyUrl = "https://example.com/privacy")
+    {
+        using var session = Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
+
+        session.Store(new TenantProfile
+        {
+            Id = tenantSlug,
+            BotPhoneNumberId = botPhoneId,
+            SystemPrompt = systemPrompt,
+            PrivacyPolicyUrl = privacyPolicyUrl
+        });
+
+        await session.SaveChangesAsync();
+    }
 }
 
 [CollectionDefinition("Integration")]

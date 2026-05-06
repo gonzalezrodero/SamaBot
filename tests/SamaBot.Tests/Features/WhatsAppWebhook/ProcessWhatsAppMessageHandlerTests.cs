@@ -18,7 +18,7 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
         var tenantSlug = "test-tenant-handler-1";
         var botPhoneId = "12345";
 
-        await SeedTenantAsync(tenantSlug, botPhoneId);
+        await fixture.SeedTenantAsync(tenantSlug, botPhoneId);
 
         var command = new ProcessWhatsAppMessage(
             MessageId: "wamid.HANDLER",
@@ -51,7 +51,7 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
         var tenantSlug = "test-tenant-handler-2";
         var botPhoneId = "123";
 
-        await SeedTenantAsync(tenantSlug, botPhoneId);
+        await fixture.SeedTenantAsync(tenantSlug, botPhoneId);
 
         var command = new ProcessWhatsAppMessage("wamid.DUP", botPhoneId, "34999111222", "Texto", DateTimeOffset.UtcNow);
 
@@ -102,20 +102,5 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
         // Assert 2: Wolverine no debe haber publicado NADA hacia el bot de IA
         var dispatchedEvents = trackedSession.Executed.MessagesOf<MessageReceived>();
         dispatchedEvents.Should().BeEmpty("No events should be published to the bus for duplicate incoming webhooks.");
-    }
-
-    private async Task SeedTenantAsync(string slug, string botPhoneId)
-    {
-        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
-
-        if (await session.LoadAsync<TenantProfile>(slug) == null)
-        {
-            session.Store(new TenantProfile
-            {
-                Id = slug,
-                BotPhoneNumberId = botPhoneId
-            });
-            await session.SaveChangesAsync();
-        }
     }
 }
