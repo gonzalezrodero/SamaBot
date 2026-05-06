@@ -126,6 +126,14 @@ public class IntegrationAppFixture : IAsyncLifetime
                     }
                     """;
                 }
+                else if (requestJson.Contains("strict data privacy filter"))
+                {
+                    jsonResponse = $$"""
+                    {
+                        "content": [ { "text": "[NAME] ha solicitado el borrado." } ]
+                    }
+                    """;
+                }
                 else
                 {
                     var responseText = requestJson.Contains("secret")

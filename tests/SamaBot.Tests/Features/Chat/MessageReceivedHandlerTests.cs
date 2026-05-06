@@ -122,23 +122,20 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
         // Act
         var trackedSession = await fixture.Host.InvokeMessageAndWaitAsync(incomingEvent);
 
-        // Assert 1: Verify Bedrock was NEVER called
-        fixture.BedrockClientMock.Verify(c => c.InvokeModelAsync(
-            It.IsAny<InvokeModelRequest>(),
-            It.IsAny<CancellationToken>()),
-            Times.Never, "Bedrock should not be invoked for system commands.");
+        // Assert 1: Verify the Replies (ACK and Success) were executed internally
+        var executedReplies = trackedSession.Executed.MessagesOf<ReplyGenerated>().ToList();
 
-        // Assert 2: Verify the Warning Message (ACK) was sent to the user via Wolverine
-        var sentReplies = trackedSession.Sent.MessagesOf<ReplyGenerated>().ToList();
-        sentReplies.Should().ContainSingle();
-        sentReplies.First().Text.Should().Contain("Estamos borrando tu historial");
+        executedReplies.Should().HaveCount(2, "The handler should send an ACK, and the background worker should send the final success message.");
+        executedReplies.Should().Contain(x => x.Text.Contains("Estamos borrando tu historial"), "The initial ACK message should be sent.");
+        executedReplies.Should().Contain(x => x.Text.Contains("eliminados de forma segura"), "The final success message should be sent by the worker.");
 
-        // Assert 3: Verify the background worker command was triggered
-        var dispatchedCommands = trackedSession.Executed.MessagesOf<DeleteChatHistoryCommand>().ToList();
-        dispatchedCommands.Should().ContainSingle("The handler should have delegated the actual deletion to the background worker.");
+        // Assert 2: Verify the background worker command was triggered
+        var executedCommands = trackedSession.Executed.MessagesOf<DeleteChatHistoryCommand>().ToList();
+        executedCommands.Should().ContainSingle("The handler should have delegated the actual deletion to the background worker.");
 
+        // Assert 3: Verify the Hard Delete actually happened
         var streamEvents = await session.Events.FetchStreamAsync(userPhone);
-        streamEvents.Should().BeEmpty("The background worker should have hard-deleted the stream.");
+        streamEvents.Should().BeEmpty("The background worker should have hard-deleted the stream in the same transaction cascade.");
     }
 
     private static bool VerifyChatHistoryPayload(InvokeModelRequest request)

@@ -12,11 +12,13 @@ public class DeleteChatHistoryHandler
 {
     public async Task Handle(
         DeleteChatHistoryCommand command,
-        IDocumentSession session,
+        IDocumentStore store,
         IChatService chatService,
         IMessageBus bus,
         CancellationToken ct)
     {
+        using var session = store.LightweightSession(command.TenantId);
+
         var streamEvents = await session.Events.FetchStreamAsync(command.PhoneNumber, token: ct);
         if (streamEvents.Count == 0) return;
 

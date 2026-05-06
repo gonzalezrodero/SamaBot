@@ -69,6 +69,43 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
         receivedCount.Should().Be(1);
     }
 
+    [Fact]
+    public async Task GivenDuplicateMessageId_WhenHandled_ThenIdempotencyIgnoresSecondAttempt()
+    {
+        // Arrange
+        var tenantId = "club-sama";
+        var botPhone = "34111222333";
+        var messageId = $"wamid.{Guid.NewGuid()}";
+
+        using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantId);
+
+        session.Store(new TenantProfile { Id = tenantId, BotPhoneNumberId = botPhone });
+
+        // Simulamos que el webhook ya se procesó en el pasado y la proyección lo guardó
+        session.Store(new ProcessedMessage { Id = messageId, TenantId = tenantId, BotPhoneNumberId = botPhone, ProcessedAt = DateTimeOffset.UtcNow.AddMinutes(-5) });
+        await session.SaveChangesAsync();
+
+        var duplicateWebhookCommand = new ProcessWhatsAppMessage(
+                    MessageId: messageId,
+                    PhoneNumber: "34999888777",
+                    Text: "Este mensaje es un reintento del servidor de Meta",
+                    BotPhoneNumberId: botPhone,
+                    Timestamp: DateTimeOffset.UtcNow,
+                    RawPayload: "{\"fake\":\"payload\"}"
+                );
+
+        // Act
+        var trackedSession = await fixture.Host.InvokeMessageAndWaitAsync(duplicateWebhookCommand);
+
+        // Assert 1: No se deben haber guardado eventos nuevos en el stream del usuario
+        var streamEvents = await session.Events.FetchStreamAsync(duplicateWebhookCommand.PhoneNumber);
+        streamEvents.Should().BeEmpty("Because the message ID was duplicated, the handler should have aborted before appending events.");
+
+        // Assert 2: Wolverine no debe haber publicado NADA hacia el bot de IA
+        var dispatchedEvents = trackedSession.Executed.MessagesOf<MessageReceived>();
+        dispatchedEvents.Should().BeEmpty("No events should be published to the bus for duplicate incoming webhooks.");
+    }
+
     private async Task SeedTenantAsync(string slug, string botPhoneId)
     {
         using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
