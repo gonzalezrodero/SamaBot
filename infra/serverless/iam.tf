@@ -79,3 +79,8 @@ resource "aws_iam_role_policy" "lambda_custom" {
   role   = aws_iam_role.lambda_exec.id
   policy = data.aws_iam_policy_document.lambda_custom_permissions.json
 }
+
+resource "aws_iam_role_policy_attachment" "attach_bootstrap_bedrock_policy" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = data.terraform_remote_state.bootstrap.outputs.bedrock_policy_arn
+}
