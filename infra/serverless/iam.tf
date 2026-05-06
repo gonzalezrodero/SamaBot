@@ -17,7 +17,7 @@ resource "aws_iam_role" "lambda_exec" {
 }
 
 # ==============================================================================
-# 2. BASIC SQS AND CLOUDWATCH LOGS PERMISSIONS
+# 2. BASIC PERMISSIONS (SQS + CloudWatch Logs)
 # ==============================================================================
 resource "aws_iam_role_policy_attachment" "lambda_basic_sqs" {
   role       = aws_iam_role.lambda_exec.name
@@ -25,12 +25,11 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_sqs" {
 }
 
 # ==============================================================================
-# 3. CUSTOM PERMISSIONS
+# 3. CUSTOM PERMISSIONS (Inline Policy)
 # ==============================================================================
 data "aws_iam_policy_document" "lambda_custom_permissions" {
-
-  # Allow the API (Lambda 1) to send messages to the queue
   statement {
+    sid    = "AllowSQSAccess"
     effect = "Allow"
     actions = [
       "sqs:SendMessage",
@@ -43,8 +42,8 @@ data "aws_iam_policy_document" "lambda_custom_permissions" {
     ]
   }
 
-  # Allow reading database credentials and WhatsApp tokens
   statement {
+    sid    = "AllowSecretsAndSSM"
     effect = "Allow"
     actions = [
       "secretsmanager:GetSecretValue",
@@ -59,18 +58,23 @@ data "aws_iam_policy_document" "lambda_custom_permissions" {
       "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter/chatbot/*"
     ]
   }
+
+  statement {
+    sid    = "AllowBedrockSonnet46"
+    effect = "Allow"
+    actions = [
+      "bedrock:InvokeModel",
+      "bedrock:InvokeModelWithResponseStream"
+    ]
+    resources = [
+      "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-sonnet-4-6-v1:0",
+      "arn:aws:bedrock:${var.aws_region}:${var.aws_account_id}:inference-profile/eu.anthropic.claude-sonnet-4-6-v1:0"
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "lambda_custom" {
   name   = "${var.project_name}-lambda-custom-policy"
   role   = aws_iam_role.lambda_exec.id
   policy = data.aws_iam_policy_document.lambda_custom_permissions.json
-}
-
-# ==============================================================================
-# 4. BEDROCK PERMISSIONS
-# ==============================================================================
-resource "aws_iam_role_policy_attachment" "lambda_bedrock" {
-  role       = aws_iam_role.lambda_exec.name
-  policy_arn = data.terraform_remote_state.bootstrap.outputs.bedrock_policy_arn
 }

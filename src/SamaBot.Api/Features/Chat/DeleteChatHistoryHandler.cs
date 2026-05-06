@@ -10,7 +10,7 @@ namespace SamaBot.Api.Features.Chat;
 /// </summary>
 public class DeleteChatHistoryHandler
 {
-    public async Task Handle(
+    public static async Task Handle(
         DeleteChatHistoryCommand command,
         IDocumentStore store,
         IChatService chatService,

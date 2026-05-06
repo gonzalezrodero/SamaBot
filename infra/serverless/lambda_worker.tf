@@ -12,9 +12,8 @@ resource "aws_lambda_function" "worker" {
       ASPNETCORE_ENVIRONMENT   = var.app_environment
       WhatsApp__BaseUrl        = "https://graph.facebook.com/v19.0/"
       BedrockSettings__Region  = var.aws_region
-      BedrockSettings__ModelId = "eu.anthropic.claude-3-5-sonnet-20240620-v1:0"
+      BedrockSettings__ModelId = "eu.anthropic.claude-sonnet-4-6-v1:0"
 
-      # Secure pointers (Visible in AWS Console)
       SECRET_ARN_MARTEN = aws_secretsmanager_secret.app_connection_string.arn
       SSM_PATH_WHATSAPP = "/chatbot/dev/whatsapp/"
     }
