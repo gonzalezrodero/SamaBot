@@ -4,6 +4,7 @@ using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using SamaBot.Api.Core.Events;
+using SamaBot.Api.Features.Chat;
 using SamaBot.Tests.Extensions;
 using System.Text;
 
@@ -95,7 +96,7 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
     [InlineData("BORRAR DATOS")]
     [InlineData("esborrar dades")]
     [InlineData("DELETE data")]
-    public async Task GivenDeleteCommand_WhenHandlerRuns_ThenItArchivesStreamAndBypassesBedrock(string commandText)
+    public async Task GivenDeleteCommand_WhenHandlerRuns_ThenItSendsAckMessageAndTriggersDeleteCommand(string commandText)
     {
         // Arrange
         fixture.BedrockClientMock.Invocations.Clear();
@@ -112,24 +113,32 @@ public class MessageReceivedHandlerTests(IntegrationAppFixture fixture)
         var incomingEvent = new MessageReceived(
             MessageId: "atomic.DeleteCmd",
             PhoneNumber: userPhone,
-            Text: commandText, // Using the parameterized command
+            Text: commandText,
             TenantId: tenantId,
             BotPhoneNumberId: botPhone,
             ReceivedAt: DateTimeOffset.UtcNow
         );
 
         // Act
-        await fixture.Host.InvokeMessageAndWaitAsync(incomingEvent);
+        var trackedSession = await fixture.Host.InvokeMessageAndWaitAsync(incomingEvent);
 
-        // Assert 1: Verify the stream is archived
-        var streamEvents = await session.Events.FetchStreamAsync(userPhone);
-        streamEvents.Should().BeEmpty("The stream should be archived and thus return no active events.");
-
-        // Assert 2: Verify Bedrock was NEVER called
+        // Assert 1: Verify Bedrock was NEVER called
         fixture.BedrockClientMock.Verify(c => c.InvokeModelAsync(
             It.IsAny<InvokeModelRequest>(),
             It.IsAny<CancellationToken>()),
             Times.Never, "Bedrock should not be invoked for system commands.");
+
+        // Assert 2: Verify the Warning Message (ACK) was sent to the user via Wolverine
+        var sentReplies = trackedSession.Sent.MessagesOf<ReplyGenerated>().ToList();
+        sentReplies.Should().ContainSingle();
+        sentReplies.First().Text.Should().Contain("Estamos borrando tu historial");
+
+        // Assert 3: Verify the background worker command was triggered
+        var dispatchedCommands = trackedSession.Executed.MessagesOf<DeleteChatHistoryCommand>().ToList();
+        dispatchedCommands.Should().ContainSingle("The handler should have delegated the actual deletion to the background worker.");
+
+        var streamEvents = await session.Events.FetchStreamAsync(userPhone);
+        streamEvents.Should().BeEmpty("The background worker should have hard-deleted the stream.");
     }
 
     private static bool VerifyChatHistoryPayload(InvokeModelRequest request)

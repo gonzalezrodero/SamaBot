@@ -1,0 +1,53 @@
+﻿using Marten;
+using SamaBot.Api.Core.Events;
+using Wolverine;
+
+namespace SamaBot.Api.Features.Chat;
+
+/// <summary>
+/// Background worker that executes the GDPR hard delete and AI anonymization.
+/// Triggered by the DeleteChatHistoryCommand.
+/// </summary>
+public class DeleteChatHistoryHandler
+{
+    public async Task Handle(
+        DeleteChatHistoryCommand command,
+        IDocumentSession session,
+        IChatService chatService,
+        IMessageBus bus,
+        CancellationToken ct)
+    {
+        var streamEvents = await session.Events.FetchStreamAsync(command.PhoneNumber, token: ct);
+        if (streamEvents.Count == 0) return;
+
+        var rawTranscript = string.Join("\n", streamEvents.Select(e => e.Data switch
+        {
+            MessageReceived m => $"User: {m.Text}",
+            ReplyGenerated r => $"Bot: {r.Text}",
+            _ => ""
+        }).Where(t => !string.IsNullOrWhiteSpace(t)));
+
+        // 3. AI Data Masking (Takes ~2-4 seconds via Bedrock)
+        var sanitizedTranscript = await chatService.SanitizeHistoryAsync(rawTranscript, ct);
+
+        // 4. Save the anonymized data as a standalone document
+        var deletedId = Guid.NewGuid();
+        var anonymizedChat = new AnonymizedChat(deletedId, DateTimeOffset.UtcNow, sanitizedTranscript);
+        session.Store(anonymizedChat);
+
+        // 5. The Physical Deletion 
+        session.QueueSqlCommand("DELETE FROM mt_events WHERE stream_id = ?", command.PhoneNumber);
+        session.QueueSqlCommand("DELETE FROM mt_streams WHERE id = ?", command.PhoneNumber);
+        await session.SaveChangesAsync(ct);
+
+        // 6. Multi-language Confirmation Message
+        var finalConfirmation = new ReplyGenerated(
+            MessageId: deletedId.ToString(),
+            BotPhoneNumberId: command.BotPhoneNumberId,
+            PhoneNumber: command.PhoneNumber,
+            Text: BotPrompts.DeleteDataSuccessReply,
+            TenantId: command.TenantId);
+
+        await bus.InvokeAsync(finalConfirmation, ct);
+    }
+}
