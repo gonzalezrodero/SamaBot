@@ -54,7 +54,6 @@ data "aws_iam_policy_document" "lambda_custom_permissions" {
     ]
     resources = [
       data.terraform_remote_state.database.outputs.db_password_secret_arn,
-      aws_secretsmanager_secret.app_connection_string.arn,
       "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter/chatbot/*"
     ]
   }
