@@ -13,8 +13,7 @@ public class ProcessedMessageProjection : EventProjection
             Id = @event.MessageId,
             ProcessedAt = @event.ReceivedAt,
             TenantId = @event.TenantId,
-            BotPhoneNumberId = @event.BotPhoneNumberId,
-            PhoneNumber = @event.PhoneNumber
+            BotPhoneNumberId = @event.BotPhoneNumberId
         });
     }
 }

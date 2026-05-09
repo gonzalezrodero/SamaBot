@@ -126,6 +126,14 @@ public class IntegrationAppFixture : IAsyncLifetime
                     }
                     """;
                 }
+                else if (requestJson.Contains("strict data privacy filter"))
+                {
+                    jsonResponse = $$"""
+                    {
+                        "content": [ { "text": "[NAME] ha solicitado el borrado." } ]
+                    }
+                    """;
+                }
                 else
                 {
                     var responseText = requestJson.Contains("secret")
@@ -152,6 +160,25 @@ public class IntegrationAppFixture : IAsyncLifetime
         if (Host != null) await Host.DisposeAsync();
         await _postgres.DisposeAsync();
         await _sqsContainer.DisposeAsync();
+    }
+
+    public async Task SeedTenantAsync(
+        string tenantSlug,
+        string botPhoneId,
+        string systemPrompt = "You are a helpful test assistant.",
+        string privacyPolicyUrl = "https://example.com/privacy")
+    {
+        using var session = Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
+
+        session.Store(new TenantProfile
+        {
+            Id = tenantSlug,
+            BotPhoneNumberId = botPhoneId,
+            SystemPrompt = systemPrompt,
+            PrivacyPolicyUrl = privacyPolicyUrl
+        });
+
+        await session.SaveChangesAsync();
     }
 }
 
