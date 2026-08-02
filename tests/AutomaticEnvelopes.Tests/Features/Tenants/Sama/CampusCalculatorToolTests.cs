@@ -92,6 +92,7 @@ public class CampusCalculatorToolTests
         // Child 2 should get the 10% discount on Campus. Child 1 and 3 get 0%.
         var payload = """
         {
+            "campusType": "Summer",
             "isSocio": true,
             "familyDiscountType": "Germa",
             "participants": [
@@ -252,5 +253,83 @@ public class CampusCalculatorToolTests
 
         // Total should be Base - Discount
         participant.Total.Should().Be(116.875m);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_September_10Days_Socio_Applies7PercentDiscount()
+    {
+        // Arrange: Campus sencer (10 dies) sent socis = 125€ - 7% = 116.25€
+        var payload = """
+        {
+            "campusType": "September",
+            "isSocio": true,
+            "familyDiscountType": "None",
+            "isAfterMay1st": false,
+            "participants": [
+                { "name": "Lucas", "campusWeeks": 0, "septemberDays": 10, "tecnificacioWeeks": 0, "menjadorDays": 0, "tardaDays": 0, "excursionsCost": 0 }
+            ]
+        }
+        """;
+
+        // Act
+        var jsonResult = await _sut.ExecuteAsync(payload, CancellationToken.None);
+        var result = JsonSerializer.Deserialize<CampusFamilyResult>(jsonResult, CampusToolJsonContext.Default.CampusFamilyResult);
+
+        // Assert
+        var lucas = result!.Breakdown.First(p => p.Name == "Lucas");
+        lucas.CampusBasePrice.Should().Be(125.00m);
+        lucas.DiscountApplied.Should().Be(8.75m); // 7% de 125
+        lucas.Total.Should().Be(116.25m);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_September_SporadicDays_NoDiscount()
+    {
+        // Arrange: Menys de 10 dies (ex: 5 dies) + 2 dies menjador = (5 * 13.50€) + (2 * 10€) = 87.50€. Cap descompte tot i ser socis.
+        var payload = """
+        {
+            "campusType": "September",
+            "isSocio": true,
+            "familyDiscountType": "None",
+            "isAfterMay1st": false,
+            "participants": [
+                { "name": "Inés", "campusWeeks": 0, "septemberDays": 5, "tecnificacioWeeks": 0, "menjadorDays": 2, "tardaDays": 0, "excursionsCost": 0 }
+            ]
+        }
+        """;
+
+        // Act
+        var jsonResult = await _sut.ExecuteAsync(payload, CancellationToken.None);
+        var result = JsonSerializer.Deserialize<CampusFamilyResult>(jsonResult, CampusToolJsonContext.Default.CampusFamilyResult);
+
+        // Assert
+        var ines = result!.Breakdown.First(p => p.Name == "Inés");
+        ines.CampusBasePrice.Should().Be(67.50m);
+        ines.DiscountApplied.Should().Be(0m);
+        ines.ServicesCost.Should().Be(20.00m);
+        ines.Total.Should().Be(87.50m);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_September_Exceeds10Days_ReturnsErrorMessageString()
+    {
+        // Arrange: L'usuari posa per error 12 dies
+        var payload = """
+        {
+            "campusType": "September",
+            "isSocio": true,
+            "familyDiscountType": "None",
+            "isAfterMay1st": false,
+            "participants": [
+                { "name": "Lucas", "campusWeeks": 0, "septemberDays": 12, "tecnificacioWeeks": 0, "menjadorDays": 0, "tardaDays": 0, "excursionsCost": 0 }
+            ]
+        }
+        """;
+
+        // Act
+        var textResult = await _sut.ExecuteAsync(payload, CancellationToken.None);
+
+        // Assert: No pot deserialitzar-se com a JSON perquè ha de retornar el string d'avís
+        textResult.Should().Contain("màxim de 10 dies disponibles");
     }
 }
