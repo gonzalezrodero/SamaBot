@@ -2,6 +2,7 @@
 using AutomaticEnvelopes.Api.Features.Knowledge.Services;
 using AutomaticEnvelopes.Api.Features.Tenancy;
 using Marten;
+using Microsoft.AspNetCore.RateLimiting;
 using Wolverine.Http;
 
 namespace AutomaticEnvelopes.Api.Features.Knowledge;
@@ -9,6 +10,7 @@ namespace AutomaticEnvelopes.Api.Features.Knowledge;
 public class IngestEndpoint
 {
     [WolverinePost("/api/admin/ingest/{tenantId}")]
+    [EnableRateLimiting("AdminPolicy")]
     public async Task<IResult> Ingest(
         string tenantId,
         IFormFile file,

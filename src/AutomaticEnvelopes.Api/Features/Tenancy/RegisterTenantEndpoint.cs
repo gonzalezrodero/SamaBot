@@ -1,4 +1,5 @@
 ﻿using Marten;
+using Microsoft.AspNetCore.RateLimiting;
 using Wolverine.Http;
 
 namespace AutomaticEnvelopes.Api.Features.Tenancy;
@@ -6,6 +7,7 @@ namespace AutomaticEnvelopes.Api.Features.Tenancy;
 public static class RegisterTenantEndpoint
 {
     [WolverinePost("/api/admin/tenants")]
+    [EnableRateLimiting("AdminPolicy")]
     public static async Task<IResult> RegisterTenant(
         TenantProfile profile,
         IDocumentSession session,
