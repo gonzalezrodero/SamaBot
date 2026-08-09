@@ -17,6 +17,7 @@ var connectionString = builder.Configuration.GetConnectionString("Marten")!;
 builder.Services.AddDatabase(connectionString);
 builder.Services.AddAi(builder.Configuration);
 builder.Services.AddFeatures(builder.Configuration);
+builder.Services.AddRateLimiting();
 
 // Wolverine (ahora desde builder.Services)
 builder.Services.AddWolverine(builder.Configuration);
@@ -37,5 +38,6 @@ if (!args.Contains("codegen"))
     app.EnsureVectorExtensionExists(connectionString);
 }
 
+app.UseRateLimiter();
 app.MapWolverineEndpoints();
 return await app.RunJasperFxCommands(args);

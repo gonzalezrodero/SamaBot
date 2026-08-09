@@ -11,7 +11,7 @@ using UglyToad.PdfPig.Writer;
 namespace AutomaticEnvelopes.Tests.E2E;
 
 [Collection("Integration")]
-public class IngestPdfEndpointTests(IntegrationAppFixture fixture)
+public class IngestEndpointTests(IntegrationAppFixture fixture)
 {
     [Fact]
     public async Task Post_Ingest_ValidFile_ReturnsOk_AndStoresChunksInMarten()
@@ -54,6 +54,38 @@ public class IngestPdfEndpointTests(IntegrationAppFixture fixture)
             .ToListAsync();
 
         chunks.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task AdminEndpoint_WhenExceeding10RequestsPerMinute_Returns429TooManyRequests()
+    {
+        // Arrange
+        var tenant = "club-basquet-sama";
+
+        // Act: Consume the 10 allowed requests
+        for (int i = 0; i < 10; i++)
+        {
+            await fixture.Host.Scenario(s =>
+            {
+                s.Post.MultipartFormData(new MultipartFormDataContent
+                {
+                    { new StringContent("dummy content"), "file", "dummy.txt" }
+                }).ToUrl($"/api/admin/ingest/{tenant}");
+
+                s.IgnoreStatusCode();
+            });
+        }
+
+        // Act & Assert: The 11th request should be rate-limited
+        await fixture.Host.Scenario(s =>
+        {
+            s.Post.MultipartFormData(new MultipartFormDataContent
+            {
+                { new StringContent("dummy content"), "file", "dummy.txt" }
+            }).ToUrl($"/api/admin/ingest/{tenant}");
+
+            s.StatusCodeShouldBe(429);
+        });
     }
 
     private static byte[] CreateSimplePdfBytes(string content)

@@ -18,6 +18,7 @@ using JasperFx.Events.Projections;
 using JasperFx.MultiTenancy;
 using Marten;
 using Npgsql;
+using System.Threading.RateLimiting;
 using Wolverine;
 using Wolverine.AmazonSqs;
 using Wolverine.ErrorHandling;
@@ -34,6 +35,25 @@ public static class Config
         services.AddWhatsAppWebhookFeature();
         services.AddKnowledgeFeature();
         services.AddWhatsAppDispatcherFeature(configuration);
+        return services;
+    }
+
+    public static IServiceCollection AddRateLimiting(this IServiceCollection services)
+    {
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            options.AddPolicy("AdminPolicy", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: httpContext.Request.Path.ToString(),
+                    factory: partition => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 10,
+                        Window = TimeSpan.FromMinutes(1)
+                    }));
+        });
+
         return services;
     }
 

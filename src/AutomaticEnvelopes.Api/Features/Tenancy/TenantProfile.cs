@@ -2,7 +2,7 @@
 
 public class TenantProfile
 {
-    public string Id { get; init; } = null!;
+    public string Id { get; set; } = null!;
 
     public string BotPhoneNumberId { get; init; } = null!;
 
