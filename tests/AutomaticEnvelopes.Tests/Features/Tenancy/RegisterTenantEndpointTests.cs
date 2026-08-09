@@ -23,16 +23,16 @@ public class RegisterTenantEndpointTests(IntegrationAppFixture fixture)
         // Act
         var result = await fixture.Host.Scenario(s =>
         {
-            s.Post.Json(profile).ToUrl("/api/admin/tenants");
+            s.Post.Json(profile).ToUrl($"/api/admin/tenants/{tenantId}");
             s.StatusCodeShouldBe(201);
         });
 
-        // Assert: Verificar respuesta
+        // Assert:
         var response = result.ReadAsJson<TenantProfile>();
         response.Should().NotBeNull();
         response!.Id.Should().Be(tenantId);
 
-        // Assert: Verificar persistencia en Marten (Tabla Global)
+        // Assert:
         using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().QuerySession();
         var stored = await session.LoadAsync<TenantProfile>(tenantId);
 
@@ -51,14 +51,16 @@ public class RegisterTenantEndpointTests(IntegrationAppFixture fixture)
         // Registramos el primero
         await fixture.Host.Scenario(s =>
         {
-            s.Post.Json(new TenantProfile { Id = tenantId, BotPhoneNumberId = botPhone1 }).ToUrl("/api/admin/tenants");
+            s.Post.Json(new TenantProfile { Id = tenantId, BotPhoneNumberId = botPhone1 })
+             .ToUrl($"/api/admin/tenants/{tenantId}");
             s.StatusCodeShouldBe(201);
         });
 
         // Act: Intentamos registrar el mismo slug con otro teléfono
         await fixture.Host.Scenario(s =>
         {
-            s.Post.Json(new TenantProfile { Id = tenantId, BotPhoneNumberId = botPhone2 }).ToUrl("/api/admin/tenants");
+            s.Post.Json(new TenantProfile { Id = tenantId, BotPhoneNumberId = botPhone2 })
+             .ToUrl($"/api/admin/tenants/{tenantId}");
 
             // Assert
             s.StatusCodeShouldBe(400);
@@ -76,14 +78,16 @@ public class RegisterTenantEndpointTests(IntegrationAppFixture fixture)
         // Registramos el primero
         await fixture.Host.Scenario(s =>
         {
-            s.Post.Json(new TenantProfile { Id = slug1, BotPhoneNumberId = botPhoneId }).ToUrl("/api/admin/tenants");
+            s.Post.Json(new TenantProfile { Id = slug1, BotPhoneNumberId = botPhoneId })
+             .ToUrl($"/api/admin/tenants/{slug1}");
             s.StatusCodeShouldBe(201);
         });
 
         // Act: Intentamos registrar el mismo teléfono con otro slug
         await fixture.Host.Scenario(s =>
         {
-            s.Post.Json(new TenantProfile { Id = slug2, BotPhoneNumberId = botPhoneId }).ToUrl("/api/admin/tenants");
+            s.Post.Json(new TenantProfile { Id = slug2, BotPhoneNumberId = botPhoneId })
+             .ToUrl($"/api/admin/tenants/{slug2}");
 
             // Assert
             s.StatusCodeShouldBe(400);
