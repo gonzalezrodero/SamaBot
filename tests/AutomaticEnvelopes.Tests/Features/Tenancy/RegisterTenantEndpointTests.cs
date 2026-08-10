@@ -2,6 +2,7 @@
 using AwesomeAssertions;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
+using System.Security.Claims;
 
 namespace AutomaticEnvelopes.Tests.Features.Tenancy;
 
@@ -91,6 +92,46 @@ public class RegisterTenantEndpointTests(IntegrationAppFixture fixture)
 
             // Assert
             s.StatusCodeShouldBe(400);
+        });
+    }
+
+    [Fact]
+    public async Task Post_RegisterTenant_WithTenantAdminRole_Returns201_AndCoversPolicy()
+    {
+        // Arrange
+        var tenantId = $"club-{Guid.NewGuid():N}";
+        var profile = new TenantProfile { Id = tenantId, BotPhoneNumberId = "test-phone" };
+
+        // Act
+        await fixture.Host.Scenario(s =>
+        {
+            s.RemoveClaim(ClaimTypes.Role);
+            s.RemoveClaim("cognito:groups");
+
+            s.WithClaim(new Claim(ClaimTypes.Role, tenantId));
+
+            s.Post.Json(profile).ToUrl($"/api/admin/tenants/{tenantId}");
+            s.StatusCodeShouldBe(201);
+        });
+    }
+
+    [Fact]
+    public async Task Post_RegisterTenant_WithWrongTenantAdminRole_Returns403_AndCoversPolicy()
+    {
+        // Arrange
+        var tenantId = $"club-{Guid.NewGuid():N}";
+        var profile = new TenantProfile { Id = tenantId, BotPhoneNumberId = "test-phone-2" };
+
+        // Act
+        await fixture.Host.Scenario(s =>
+        {
+            s.RemoveClaim(ClaimTypes.Role);
+            s.RemoveClaim("cognito:groups");
+
+            s.WithClaim(new Claim(ClaimTypes.Role, "another-random-club"));
+
+            s.Post.Json(profile).ToUrl($"/api/admin/tenants/{tenantId}");
+            s.StatusCodeShouldBe(403);
         });
     }
 }
