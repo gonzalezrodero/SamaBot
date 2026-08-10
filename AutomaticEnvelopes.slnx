@@ -53,8 +53,8 @@
     <File Path="infra/network/config/prod/config.tfvars" />
   </Folder>
   <Folder Name="/infra/serverless/">
-    <File Path="cognito.tf" />
     <File Path="infra/serverless/backend.tf" />
+    <File Path="infra/serverless/cognito.tf" />
     <File Path="infra/serverless/data.tf" />
     <File Path="infra/serverless/ecr.tf" />
     <File Path="infra/serverless/iam.tf" />
