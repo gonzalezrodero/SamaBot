@@ -1,6 +1,6 @@
 # 1. Main User Pool
 resource "aws_cognito_user_pool" "admin_pool" {
-  name = "${var.project_name}-admin-pool-${var.app_environment}"
+  name = "${var.project_name}-admin-pool"
 
   password_policy {
     minimum_length    = 8
@@ -17,7 +17,7 @@ resource "aws_cognito_user_pool" "admin_pool" {
 
 # 2. Free AWS Hosted UI Subdomain
 resource "aws_cognito_user_pool_domain" "admin_domain" {
-  domain       = "${var.project_name}-admin-${var.app_environment}"
+  domain       = "${var.project_name}-admin"
   user_pool_id = aws_cognito_user_pool.admin_pool.id
 }
 
