@@ -41,7 +41,7 @@ public class EmbeddingServiceTests
             .ReturnsAsync(invokeResponse);
 
         // Act
-        var result = await sut.GenerateEmbeddingAsync(textToEmbed);
+        var result = await sut.GenerateEmbeddingAsync(textToEmbed, TestContext.Current.CancellationToken);
 
         // Assert
         result.Should().NotBeNull();
@@ -63,7 +63,7 @@ public class EmbeddingServiceTests
             .ReturnsAsync(new InvokeModelResponse { Body = responseStream });
 
         // Act
-        await sut.GenerateEmbeddingAsync(textToEmbed);
+        await sut.GenerateEmbeddingAsync(textToEmbed, TestContext.Current.CancellationToken);
 
         // Assert
         mocker.GetMock<IAmazonBedrockRuntime>()

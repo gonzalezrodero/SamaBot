@@ -19,16 +19,20 @@ public class SqsLambdaHandlerIntegrationTests(IntegrationAppFixture fixture) : I
 {
     private SqsLambdaHandler _handler = null!;
 
-    public Task InitializeAsync()
+    ValueTask IAsyncLifetime.InitializeAsync()
     {
         var bus = fixture.Host.Services.GetRequiredService<Wolverine.IMessageBus>();
         var logger = fixture.Host.Services.GetRequiredService<ILogger<SqsLambdaHandler>>();
 
         _handler = new SqsLambdaHandler(bus, logger);
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        GC.SuppressFinalize(this);
+        return ValueTask.CompletedTask;
+    }
 
     [Fact]
     public async Task FunctionHandler_ValidWhatsAppMessage_SavesEventToMarten()
@@ -51,7 +55,7 @@ public class SqsLambdaHandlerIntegrationTests(IntegrationAppFixture fixture) : I
 
         // Assert: 
         using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantId);
-        var streamEvents = await session.Events.FetchStreamAsync(userPhone);
+        var streamEvents = await session.Events.FetchStreamAsync(userPhone, token: TestContext.Current.CancellationToken);
 
         var receivedEvent = streamEvents.Select(e => e.Data).OfType<MessageReceived>().FirstOrDefault();
         receivedEvent.Should().NotBeNull("El handler de SQS debería haber invocado el bus, procesado el mensaje y guardado en PostgreSQL.");
@@ -92,7 +96,7 @@ public class SqsLambdaHandlerIntegrationTests(IntegrationAppFixture fixture) : I
                 CombinedText = "Pending text"
             };
             setupSession.Store(saga);
-            await setupSession.SaveChangesAsync();
+            await setupSession.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var msg = new ChatWindowExpired(userPhone);
@@ -105,7 +109,7 @@ public class SqsLambdaHandlerIntegrationTests(IntegrationAppFixture fixture) : I
         result.BatchItemFailures.Should().BeEmpty();
 
         using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
-        var deletedSaga = await session.LoadAsync<ChatDebounceSaga>(userPhone);
+        var deletedSaga = await session.LoadAsync<ChatDebounceSaga>(userPhone, token: TestContext.Current.CancellationToken);
 
         deletedSaga.Should().BeNull("La saga debe haber sido procesada y eliminada (MarkCompleted) por el evento del sistema.");
     }

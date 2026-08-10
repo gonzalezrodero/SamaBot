@@ -34,7 +34,7 @@ public class RegisterTenantEndpointTests(IntegrationAppFixture fixture)
 
         // Assert:
         using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().QuerySession();
-        var stored = await session.LoadAsync<TenantProfile>(tenantId);
+        var stored = await session.LoadAsync<TenantProfile>(tenantId, TestContext.Current.CancellationToken);
 
         stored.Should().NotBeNull();
         stored!.BotPhoneNumberId.Should().Be(botPhoneId);

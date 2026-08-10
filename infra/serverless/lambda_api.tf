@@ -10,6 +10,7 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       ASPNETCORE_ENVIRONMENT   = var.app_environment
+
       WhatsApp__BaseUrl        = "https://graph.facebook.com/v19.0/"
       BedrockSettings__Region  = var.aws_region
       BedrockSettings__ModelId = "eu.anthropic.claude-sonnet-4-6"
@@ -17,6 +18,9 @@ resource "aws_lambda_function" "api" {
       SECRET_ARN_MARTEN = data.terraform_remote_state.database.outputs.db_password_secret_arn
       DB_HOST           = data.terraform_remote_state.database.outputs.db_endpoint
       SSM_PATH_WHATSAPP = "/automatic-envelopes/whatsapp/"
+
+      COGNITO_USER_POOL_ID = aws_cognito_user_pool.admin_pool.id
+      COGNITO_CLIENT_ID    = aws_cognito_user_pool_client.spa_client.id
     }
   }
 

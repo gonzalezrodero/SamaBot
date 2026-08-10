@@ -53,7 +53,7 @@ public class KnowledgeBaseServiceTests
             .ReturnsAsync(expectedChunks);
 
         // Act 
-        var result = await sut.SearchAsync(TestTenantId, query, limit: 1);
+        var result = await sut.SearchAsync(TestTenantId, query, limit: 1, ct: TestContext.Current.CancellationToken);
 
         // Assert
         result.Should().NotBeNull();
@@ -83,7 +83,7 @@ public class KnowledgeBaseServiceTests
             .ReturnsAsync(mockVector);
 
         // Act
-        await sut.IngestChunksAsync(TestTenantId, [content], source);
+        await sut.IngestChunksAsync(TestTenantId, [content], source, ct: TestContext.Current.CancellationToken);
 
         // Assert
         mockSession
@@ -101,7 +101,7 @@ public class KnowledgeBaseServiceTests
     public async Task ClearTenantChunksAsync_DeletesChunksAndSaves()
     {
         // Act
-        await sut.ClearTenantChunksAsync(TestTenantId);
+        await sut.ClearTenantChunksAsync(TestTenantId, ct: TestContext.Current.CancellationToken);
 
         // Assert
         mockSession.Verify(s => s.DeleteWhere(It.IsAny<Expression<Func<DocumentChunk, bool>>>()), Times.Once);

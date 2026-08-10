@@ -14,10 +14,12 @@ builder.AddAwsSecureConfiguration();
 var connectionString = builder.Configuration.GetConnectionString("Marten")!;
 
 // Services
+builder.Services.AddAuthentication(builder.Configuration);
+builder.Services.AddCustomAuthorization();
+builder.Services.AddRateLimiting();
 builder.Services.AddDatabase(connectionString);
 builder.Services.AddAi(builder.Configuration);
 builder.Services.AddFeatures(builder.Configuration);
-builder.Services.AddRateLimiting();
 
 // Wolverine (ahora desde builder.Services)
 builder.Services.AddWolverine(builder.Configuration);
@@ -38,6 +40,8 @@ if (!args.Contains("codegen"))
     app.EnsureVectorExtensionExists(connectionString);
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseRateLimiter();
 app.MapWolverineEndpoints();
 return await app.RunJasperFxCommands(args);

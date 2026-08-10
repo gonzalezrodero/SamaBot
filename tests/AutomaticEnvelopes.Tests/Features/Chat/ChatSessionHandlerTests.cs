@@ -31,7 +31,7 @@ public class ChatSessionHandlerTests(IntegrationAppFixture fixture)
         // FIX: Simular que el Webhook guardó el mensaje en BD antes de que el Handler de la IA se ejecute
         using var arrangeSession = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantId);
         arrangeSession.Events.Append(userPhone, new MessageReceived("wamid.1", userPhone, "Quina és la contrasenya?", tenantId, botPhone, DateTimeOffset.UtcNow));
-        await arrangeSession.SaveChangesAsync();
+        await arrangeSession.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var incomingCommand = new AnalyzeChatSession(
             PhoneNumber: userPhone,
@@ -45,7 +45,7 @@ public class ChatSessionHandlerTests(IntegrationAppFixture fixture)
 
         // Assert 1: Stream state
         using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantId);
-        var streamEvents = await session.Events.FetchStreamAsync(userPhone);
+        var streamEvents = await session.Events.FetchStreamAsync(userPhone, token: TestContext.Current.CancellationToken);
 
         var replyGenerated = streamEvents.FirstOrDefault(e => e.Data is ReplyGenerated)?.Data as ReplyGenerated;
 
@@ -87,7 +87,7 @@ public class ChatSessionHandlerTests(IntegrationAppFixture fixture)
 
         // FIX: Pre-populate the CURRENT message that the Webhook just received
         session.Events.Append(userPhone, new MessageReceived("new.2", userPhone, "¿Me recuerdas?", tenantId, botPhone, DateTimeOffset.UtcNow));
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var incomingCommand = new AnalyzeChatSession(
             PhoneNumber: userPhone,
@@ -100,7 +100,7 @@ public class ChatSessionHandlerTests(IntegrationAppFixture fixture)
         await fixture.Host.InvokeMessageAndWaitAsync(incomingCommand);
 
         // Assert 1: Stream State
-        var streamEvents = await session.Events.FetchStreamAsync(userPhone);
+        var streamEvents = await session.Events.FetchStreamAsync(userPhone, token: TestContext.Current.CancellationToken);
         var replies = streamEvents.Select(e => e.Data).OfType<ReplyGenerated>().ToList();
 
         replies.Should().HaveCount(2);
@@ -146,7 +146,7 @@ public class ChatSessionHandlerTests(IntegrationAppFixture fixture)
         session.Events.Append(userPhone, new MessageReceived("old.1", userPhone, "Hola", tenantId, botPhone, DateTimeOffset.UtcNow));
         // FIX: Add the delete command message to DB
         session.Events.Append(userPhone, new MessageReceived("new.delete", userPhone, commandText, tenantId, botPhone, DateTimeOffset.UtcNow));
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var incomingCommand = new AnalyzeChatSession(
             PhoneNumber: userPhone,
@@ -170,7 +170,7 @@ public class ChatSessionHandlerTests(IntegrationAppFixture fixture)
         executedCommands.Should().ContainSingle("The handler should have delegated the actual deletion to the background worker.");
 
         // Assert 3: Verify the Hard Delete actually happened
-        var streamEvents = await session.Events.FetchStreamAsync(userPhone);
+        var streamEvents = await session.Events.FetchStreamAsync(userPhone, token: TestContext.Current.CancellationToken);
         streamEvents.Should().BeEmpty("The background worker should have hard-deleted the stream in the same transaction cascade.");
     }
 }

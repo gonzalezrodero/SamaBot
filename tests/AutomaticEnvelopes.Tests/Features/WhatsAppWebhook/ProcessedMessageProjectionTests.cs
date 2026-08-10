@@ -30,16 +30,16 @@ public class ProcessedMessageProjectionTests(IntegrationAppFixture fixture)
 
         // Act
         session.Events.Append(phoneNumber, @event);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        var projectedDoc = await session.LoadAsync<ProcessedMessage>(messageId);
+        var projectedDoc = await session.LoadAsync<ProcessedMessage>(messageId, TestContext.Current.CancellationToken);
 
         projectedDoc.Should().NotBeNull("The projection should create a document using the MessageId.");
         projectedDoc!.Id.Should().Be(messageId);
         projectedDoc.TenantId.Should().Be(tenantId);
 
-        var rawJson = await session.Json.FindByIdAsync<ProcessedMessage>(messageId);
+        var rawJson = await session.Json.FindByIdAsync<ProcessedMessage>(messageId, TestContext.Current.CancellationToken);
         rawJson.Should().NotContain(phoneNumber, "The projected document must not contain PII (Phone Number) to comply with GDPR data minimization.");
     }
 }
