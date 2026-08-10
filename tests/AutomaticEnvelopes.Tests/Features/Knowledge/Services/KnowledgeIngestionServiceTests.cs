@@ -22,7 +22,7 @@ public class KnowledgeIngestionServiceTests
     public async Task IngestDocumentAsync_EmptyText_ReturnsEarlyAndDoesNotCallDatabase(string? emptyText)
     {
         // Act
-        await sut.IngestDocumentAsync("TestTenant", emptyText!, "file.md");
+        await sut.IngestDocumentAsync("TestTenant", emptyText!, "file.md", TestContext.Current.CancellationToken);
 
         // Assert
         var dbMock = mocker.GetMock<IKnowledgeBaseService>();
@@ -41,7 +41,7 @@ public class KnowledgeIngestionServiceTests
         var text = "This is a valid extracted text.";
 
         // Act
-        await sut.IngestDocumentAsync(tenantId, text, fileName);
+        await sut.IngestDocumentAsync(tenantId, text, fileName, TestContext.Current.CancellationToken);
 
         // Assert
         var dbMock = mocker.GetMock<IKnowledgeBaseService>();
@@ -69,7 +69,7 @@ public class KnowledgeIngestionServiceTests
         var text = new string('A', 1200);
 
         // Act
-        await sut.IngestDocumentAsync(tenantId, text, fileName);
+        await sut.IngestDocumentAsync(tenantId, text, fileName, TestContext.Current.CancellationToken);
 
         // Assert
         var dbMock = mocker.GetMock<IKnowledgeBaseService>();

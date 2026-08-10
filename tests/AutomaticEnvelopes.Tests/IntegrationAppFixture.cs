@@ -1,4 +1,5 @@
 ﻿using Alba;
+using Alba.Security;
 using Amazon.BedrockRuntime;
 using Amazon.BedrockRuntime.Model;
 using Amazon.SQS;
@@ -18,6 +19,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Moq;
+using System.Security.Claims;
 using System.Text;
 using Testcontainers.PostgreSql;
 using Message = Amazon.BedrockRuntime.Model.Message;
@@ -41,7 +43,7 @@ public class IntegrationAppFixture : IAsyncLifetime
     public Mock<IAmazonBedrockRuntime> BedrockClientMock { get; } = new();
     public Mock<IWhatsAppClient> WhatsAppClientMock { get; } = new();
 
-    public async Task InitializeAsync()
+    async ValueTask IAsyncLifetime.InitializeAsync()
     {
         await Task.WhenAll(_postgres.StartAsync(), _sqsContainer.StartAsync());
 
@@ -72,6 +74,10 @@ public class IntegrationAppFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("AWS_SESSION_TOKEN", "");
         Environment.SetEnvironmentVariable("AWS_ENDPOINT_URL", sqsServiceUrl);
         Environment.SetEnvironmentVariable("AWS_ENDPOINT_URL_SQS", sqsServiceUrl);
+
+        var securityStub = new AuthenticationStub()
+            .WithName("IntegrationTestUser")
+            .With(ClaimTypes.Role, "admin");
 
         Host = await AlbaHost.For<Program>(builder =>
         {
@@ -109,7 +115,7 @@ public class IntegrationAppFixture : IAsyncLifetime
                     opts.VerifyToken = "integration_test_verify_token";
                 });
             });
-        });
+        }, securityStub);
     }
 
     private void SetupMockResponses()
@@ -208,11 +214,13 @@ public class IntegrationAppFixture : IAsyncLifetime
             });
     }
 
-    public async Task DisposeAsync()
+    async ValueTask IAsyncDisposable.DisposeAsync()
     {
         if (Host != null) await Host.DisposeAsync();
         await _postgres.DisposeAsync();
         await _sqsContainer.DisposeAsync();
+
+        GC.SuppressFinalize(this);
     }
 
     public async Task SeedTenantAsync(

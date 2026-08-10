@@ -51,7 +51,7 @@ public class IngestEndpointTests(IntegrationAppFixture fixture)
         using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantId);
         var chunks = await session.Query<DocumentChunk>()
             .Where(x => x.SourceDocument == fileName)
-            .ToListAsync();
+            .ToListAsync(TestContext.Current.CancellationToken);
 
         chunks.Should().NotBeEmpty();
     }

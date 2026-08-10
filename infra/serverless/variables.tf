@@ -22,3 +22,13 @@ variable "aws_account_id" {
   type        = string
   description = "AWS Account ID"
 }
+
+variable "admin_ui_callback_urls" {
+  type        = list(string)
+  description = "List of allowed callback URLs for the Cognito Hosted UI"
+}
+
+variable "admin_ui_logout_urls" {
+  type        = list(string)
+  description = "List of allowed logout URLs for the Cognito Hosted UI"
+}

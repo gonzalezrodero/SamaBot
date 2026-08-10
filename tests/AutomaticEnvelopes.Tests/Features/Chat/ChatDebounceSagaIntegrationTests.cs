@@ -33,7 +33,7 @@ public class ChatDebounceSagaIntegrationTests(IntegrationAppFixture fixture)
 
         // Assert 1: Verify the state is correctly grouped inside PostgreSQL
         using var querySession = fixture.Host.Services.GetRequiredService<IDocumentStore>().QuerySession();
-        var sagaState = await querySession.LoadAsync<ChatDebounceSaga>(userPhone);
+        var sagaState = await querySession.LoadAsync<ChatDebounceSaga>(userPhone, TestContext.Current.CancellationToken);
 
         sagaState.Should().NotBeNull();
         sagaState!.CombinedText.Should().Be("Hello\nI need help\nwith my account");
@@ -48,7 +48,7 @@ public class ChatDebounceSagaIntegrationTests(IntegrationAppFixture fixture)
         aiCommand!.CombinedText.Should().Be("Hello\nI need help\nwith my account");
 
         // Assert 3: Verify the Saga was cleaned up from PostgreSQL
-        var deletedSaga = await querySession.LoadAsync<ChatDebounceSaga>(userPhone);
+        var deletedSaga = await querySession.LoadAsync<ChatDebounceSaga>(userPhone, TestContext.Current.CancellationToken);
         deletedSaga.Should().BeNull("Marten should have deleted the saga row after completion.");
     }
 }

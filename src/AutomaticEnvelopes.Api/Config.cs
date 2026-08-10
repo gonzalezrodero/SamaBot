@@ -17,6 +17,8 @@ using JasperFx.Events;
 using JasperFx.Events.Projections;
 using JasperFx.MultiTenancy;
 using Marten;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using System.Threading.RateLimiting;
 using Wolverine;
@@ -53,6 +55,63 @@ public static class Config
                         Window = TimeSpan.FromMinutes(1)
                     }));
         });
+
+        return services;
+    }
+
+    public static IServiceCollection AddAuthentication(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                var region = configuration["AWS_REGION"] ?? "eu-west-1";
+                var userPoolId = configuration["COGNITO_USER_POOL_ID"];
+                var authority = $"https://cognito-idp.{region}.amazonaws.com/{userPoolId}";
+
+                options.Authority = authority;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = authority,
+                    ValidateLifetime = true,
+                    ValidateAudience = false, 
+                    RoleClaimType = "cognito:groups"
+                };
+            });
+
+        return services;
+    }
+
+    public static IServiceCollection AddCustomAuthorization(this IServiceCollection services)
+    {
+        services.AddAuthorizationBuilder()
+            .AddPolicy("TenantAdmin", policy =>
+            {
+                policy.RequireAuthenticatedUser();
+                policy.RequireAssertion(context =>
+                {
+                    // 1. Global admins always have access
+                    if (context.User.IsInRole("admin"))
+                    {
+                        return true;
+                    }
+
+                    // 2. Extract tenantId directly from the route URL
+                    if (context.Resource is HttpContext httpContext)
+                    {
+                        var tenantId = httpContext.Request.RouteValues["tenantId"]?.ToString();
+
+                        // 3. Check if the user belongs to the group for this specific tenant
+                        if (!string.IsNullOrEmpty(tenantId) && context.User.IsInRole(tenantId))
+                        {
+                            return true;
+                        }
+                    }
+
+                    // If neither matches, automatically return 403 Forbidden
+                    return false;
+                });
+            });
 
         return services;
     }

@@ -34,7 +34,7 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
         // Assert: The message was correctly sourced in the database
         using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantSlug);
 
-        var streamEvents = await session.Events.FetchStreamAsync("34999111222");
+        var streamEvents = await session.Events.FetchStreamAsync("34999111222", token: TestContext.Current.CancellationToken);
 
         streamEvents.Should().NotBeEmpty();
 
@@ -62,7 +62,7 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
         // Assert: It should only exist once in the stream
         using var session = fixture.Host.Services.GetRequiredService<IDocumentStore>().LightweightSession(tenantSlug);
 
-        var streamEvents = await session.Events.FetchStreamAsync("34999111222");
+        var streamEvents = await session.Events.FetchStreamAsync("34999111222", token: TestContext.Current.CancellationToken);
 
         var receivedCount = streamEvents.Count(e => e.Data is MessageReceived mr && mr.MessageId == "wamid.DUP");
         receivedCount.Should().Be(1);
@@ -82,7 +82,7 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
 
         // Simulate that the webhook was already processed in the past and the projection saved it
         session.Store(new ProcessedMessage { Id = messageId, TenantId = tenantId, BotPhoneNumberId = botPhone, ProcessedAt = DateTimeOffset.UtcNow.AddMinutes(-5) });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var duplicateWebhookCommand = new ProcessWhatsAppMessage(
             MessageId: messageId,
@@ -96,7 +96,7 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
         var trackedSession = await fixture.Host.InvokeMessageAndWaitAsync(duplicateWebhookCommand);
 
         // Assert 1: No new events should have been saved in the user's stream
-        var streamEvents = await session.Events.FetchStreamAsync(duplicateWebhookCommand.PhoneNumber);
+        var streamEvents = await session.Events.FetchStreamAsync(duplicateWebhookCommand.PhoneNumber, token: TestContext.Current.CancellationToken);
         streamEvents.Should().BeEmpty("Because the message ID was duplicated, the handler should have aborted before appending events.");
 
         // Assert 2: Wolverine should NOT have published ANYTHING to the AI bot bus
@@ -123,7 +123,7 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
             MessageCount = 25,
             WindowResetTime = DateTimeOffset.UtcNow.AddMinutes(1)
         });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var spamCommand = new ProcessWhatsAppMessage(
             MessageId: $"wamid.{Guid.NewGuid()}",
@@ -137,7 +137,7 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
         var trackedSession = await fixture.Host.InvokeMessageAndWaitAsync(spamCommand);
 
         // Assert 1: No events should have been appended to the event stream
-        var streamEvents = await session.Events.FetchStreamAsync(spammerPhone);
+        var streamEvents = await session.Events.FetchStreamAsync(spammerPhone, token: TestContext.Current.CancellationToken);
         streamEvents.Should().BeEmpty("The rate limit was reached, so the message must be dropped before appending events.");
 
         // Assert 2: Wolverine should not have dispatched the MessageReceived event downstream
@@ -145,7 +145,7 @@ public class ProcessWhatsAppMessageHandlerTests(IntegrationAppFixture fixture)
         dispatchedEvents.Should().BeEmpty("No events should be published when the spam shield is triggered.");
 
         // Assert 3: Ensure the tracker incremented to 26 and was saved (locking the spammer out)
-        var tracker = await session.LoadAsync<WhatsAppRateLimitTracker>(spammerPhone);
+        var tracker = await session.LoadAsync<WhatsAppRateLimitTracker>(spammerPhone, token: TestContext.Current.CancellationToken);
         tracker.Should().NotBeNull();
         tracker!.MessageCount.Should().Be(26, "The tracker must increment and save the blocked attempt.");
     }
