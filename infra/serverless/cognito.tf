@@ -1,6 +1,6 @@
 # 1. Main User Pool
 resource "aws_cognito_user_pool" "admin_pool" {
-  name = "${var.project_name}-admin-pool"
+  name = "automatic-envelopes-admin-pool"
 
   password_policy {
     minimum_length    = 8
@@ -11,28 +11,27 @@ resource "aws_cognito_user_pool" "admin_pool" {
   }
 
   admin_create_user_config {
-    allow_admin_create_user_only = true # Only system administrators can create users
+    allow_admin_create_user_only = true
   }
 }
 
 # 2. Free AWS Hosted UI Subdomain
 resource "aws_cognito_user_pool_domain" "admin_domain" {
-  domain       = "${var.project_name}-admin"
+  domain       = var.cognito_auth_domain
   user_pool_id = aws_cognito_user_pool.admin_pool.id
 }
 
-# 3. Client App without secret for the SPA / Admin UI
+# 3. Client App
 resource "aws_cognito_user_pool_client" "spa_client" {
-  name         = "${var.project_name}-spa-client"
+  name         = "automatic-envelopes-spa-client"
   user_pool_id = aws_cognito_user_pool.admin_pool.id
 
-  generate_secret = false # CRITICAL: Must be false for browser-based apps
+  generate_secret = false 
 
   allowed_oauth_flows_user_pool_client = true
-  allowed_oauth_flows                  = ["code"] # Authorization Code Flow (PKCE)
+  allowed_oauth_flows                  = ["code"] 
   allowed_oauth_scopes                 = ["email", "openid", "profile"]
 
-  # URLs dynamically injected per environment
   callback_urls = var.admin_ui_callback_urls
   logout_urls   = var.admin_ui_logout_urls
 
