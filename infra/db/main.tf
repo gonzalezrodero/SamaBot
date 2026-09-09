@@ -39,7 +39,7 @@ resource "aws_security_group" "db_sg" {
 # ==========================================
 resource "aws_db_subnet_group" "db_subnets" {
   name       = "${var.project_name}-db-subnet-group"
-  subnet_ids = data.terraform_remote_state.network.outputs.public_subnet_ids
+  subnet_ids = data.terraform_remote_state.network.outputs.private_subnet_ids
 
   tags = {
     Name = "${var.project_name}-db-subnet-group"
@@ -69,17 +69,17 @@ resource "aws_db_instance" "postgres" {
 
   db_subnet_group_name   = aws_db_subnet_group.db_subnets.name
   vpc_security_group_ids = [aws_security_group.db_sg.id]
-  publicly_accessible    = true
+  publicly_accessible    = false
   skip_final_snapshot    = true
 
   manage_master_user_password = true
 
   # 1. Performance Insights
-  performance_insights_enabled          = true
+  performance_insights_enabled          = false
   performance_insights_retention_period = 7
 
   # 2. Enhanced Monitoring
-  monitoring_interval = 60
+  monitoring_interval = 0
   monitoring_role_arn = aws_iam_role.rds_monitoring_role.arn
 }
 
