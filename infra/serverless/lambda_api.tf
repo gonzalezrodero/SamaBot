@@ -9,7 +9,7 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      ASPNETCORE_ENVIRONMENT   = var.app_environment
+      ASPNETCORE_ENVIRONMENT = var.app_environment
 
       WhatsApp__BaseUrl        = "https://graph.facebook.com/v19.0/"
       BedrockSettings__Region  = var.aws_region
